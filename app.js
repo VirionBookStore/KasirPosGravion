@@ -714,7 +714,12 @@
   }
   function kpgReload() {
     $('#btnMuatStok').disabled = true; $('#btnMuatStok').textContent = 'Memuat…';
-    kpgMuatBarang().then(renderStokCabang).catch(function (e) { toast(e.message); })
+    kpgMuatBarang().then(function () {
+      kpgTerapkanKeLokal();
+      renderStokCabang();
+      renderPOS();
+      renderKelola();
+    }).catch(function (e) { toast(e.message); })
       .then(function () { $('#btnMuatStok').disabled = false; $('#btnMuatStok').textContent = 'Muat ulang'; });
   }
   function kpgBarangById(id) { return kpgBarang.find(function (b) { return b.id_barang === id; }); }
