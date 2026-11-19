@@ -310,7 +310,7 @@
     $('#layarMasuk').hidden = true; $('#aplikasi').hidden = false;
     $('#namaKasir').textContent = k.nama + (k.peran === 'admin' ? ' · admin' : '');
     $('#namaTokoNav').textContent = D.toko.nama;
-    $$('[data-hal="produk"],[data-hal="atur"]').forEach(function (b) { b.hidden = !isAdmin(); });
+    $('[data-hal="produk"],[data-hal="stok"],[data-hal="atur"]').forEach(function (b) { b.hidden = !isAdmin(); });
     var tg = $('#tglHariIni'); if (tg) tg.textContent = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var av = $('#avatarKasir'); if (av) av.textContent = inisial(k.nama);
     buka('kasir');
@@ -840,6 +840,8 @@
   var sesi = null; try { sesi = sessionStorage.getItem('kasir-sesi'); } catch (e) {}
   var k = sesi && D.kasir.find(function (x) { return x.id === sesi; });
   if (k) masuk(k); else if (/[?&]demo\b/.test(location.search)) { masuk(D.kasir[0]); [0, 0, 3, 8].forEach(function (i, n) { var p = D.produk[i]; if (p) tambahKeKeranjang(p, p.varian[n % p.varian.length]); }); } else tampilMasuk();
+
+  if (kpgToken) kpgMuatAwal().then(renderStokCabang).catch(function () { kpgToken = ''; try { sessionStorage.removeItem('kpg-token'); } catch (e) {} });
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(function () {});
 
