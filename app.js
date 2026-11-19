@@ -71,11 +71,9 @@
 
   var D;
   function muat() {
-    try { D = JSON.parse(localStorage.getItem(KUNCI)); } catch (e) { D = null; }
-    if (!D || !D.produk) { D = dataContoh(); simpan(); }
-    // Migrasi data lama: nama bawaan lama dianggap belum diubah pengguna.
-    if (D.toko.namaDariTema === undefined) D.toko.namaDariTema = D.toko.nama === 'Kopi Senja' || D.toko.nama === 'Toko Saya';
-    if (D.toko.namaDariTema) D.toko.nama = NAMA_TEMA;
+    // Gravion menggunakan GAS sebagai sumber master. Data contoh lama sengaja
+    // tidak dimuat lagi; cache lokal baru dibuat setelah bootstrap GAS berhasil.
+    D = dataKosong();
   }
 
   // ---------- Tema (customizer Maliki Studio, lihat tema.css & tema.js) ----------
@@ -649,8 +647,12 @@
           kpgToken = r.token; kpgUser = r.user;
           try { sessionStorage.setItem('kpg-token', kpgToken); } catch (e) {}
           tutupDialog(); return kpgMuatAwal();
-        }).then(function () { toast('Database Gravion terhubung'); renderStokCabang(); })
-          .catch(function (e) { $('#kpgLogin', f).disabled = false; $('#kpgLogin', f).textContent = 'Hubungkan'; toast(e.message); });
+        }).then(function () {
+          kpgTerapkanKeLokal();
+          toast('Database Gravion terhubung');
+          masuk(kpgBuatPenggunaLokal());
+          renderStokCabang();
+        }).catch(function (e) { $('#kpgLogin', f).disabled = false; $('#kpgLogin', f).textContent = 'Hubungkan'; toast(e.message); });
       };
     });
   }
@@ -660,6 +662,32 @@
       kpgCabangAktif = r.id_cabang_aktif || (kpgCabang[0] && kpgCabang[0].id_cabang) || '';
       return kpgMuatBarang();
     });
+  }
+  function kpgBuatPenggunaLokal() {
+    var role = String((kpgUser && kpgUser.peran) || '').toUpperCase();
+    return { id: (kpgUser && kpgUser.id_user) || 'gravion-user', nama: (kpgUser && kpgUser.nama) || 'Pengguna Gravion',
+      peran: (role === 'OWNER' || role === 'ADMIN') ? 'admin' : 'kasir', pin: '' };
+  }
+  function kpgTerapkanKeLokal() {
+    var barang = (kpgBarang || []).map(function (b) {
+      var harga = Number(b.harga_jual || 0);
+      return { id: String(b.id_barang), kode: String(b.kode_barang || ''), barcode: String(b.barcode || ''),
+        nama: String(b.nama_barang || ''), kategori: String(b.kategori || 'Lainnya'), stok: Number(b.stok || 0),
+        foto: String(b.foto || ''), satuan: String(b.satuan || 'pcs'),
+        hargaBeli: Number(b.harga_beli || 0), varian: [{ nama: 'Normal', harga: harga }] };
+    });
+    D = D || dataKosong();
+    D.produk = barang;
+    D.kategori = Array.from(new Set(barang.map(function (b) { return b.kategori; }).filter(Boolean)));
+    D.kasir = [kpgBuatPenggunaLokal()];
+    D.transaksi = [];
+    D.nomor = 0;
+    D.toko = D.toko || dataKosong().toko;
+    D.toko.nama = 'Kasir Gravion';
+    D.toko.namaDariTema = false;
+    try { localStorage.removeItem(KUNCI); } catch (e) {}
+    simpan();
+    try { sessionStorage.removeItem('kasir-sesi'); } catch (e) {}
   }
   function kpgMuatBarang() {
     if (!kpgCabangAktif) { kpgBarang = []; return Promise.resolve(); }
@@ -837,11 +865,21 @@
 
   // ---------- Mulai ----------
   muat(); ikatEvent(); pasangLogo();
-  var sesi = null; try { sesi = sessionStorage.getItem('kasir-sesi'); } catch (e) {}
-  var k = sesi && D.kasir.find(function (x) { return x.id === sesi; });
-  if (k) masuk(k); else if (/[?&]demo\b/.test(location.search)) { masuk(D.kasir[0]); [0, 0, 3, 8].forEach(function (i, n) { var p = D.produk[i]; if (p) tambahKeKeranjang(p, p.varian[n % p.varian.length]); }); } else tampilMasuk();
-
-  if (kpgToken) kpgMuatAwal().then(renderStokCabang).catch(function () { kpgToken = ''; try { sessionStorage.removeItem('kpg-token'); } catch (e) {} });
+  $('#layarMasuk').hidden = true;
+  $('#aplikasi').hidden = true;
+  if (kpgToken) {
+    kpgMuatAwal().then(function () {
+      kpgTerapkanKeLokal();
+      masuk(kpgBuatPenggunaLokal());
+      renderStokCabang();
+    }).catch(function () {
+      kpgToken = '';
+      try { sessionStorage.removeItem('kpg-token'); } catch (e) {}
+      kpgHubungkan();
+    });
+  } else {
+    kpgHubungkan();
+  }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(function () {});
 
