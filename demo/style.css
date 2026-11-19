@@ -337,6 +337,8 @@ dialog:has(.bayar){width:min(820px,calc(100% - 24px))}
 .qris img{width:200px;height:200px}
 .qris p{color:#4b5563}
 
+.toast-dalam-dialog{display:block;margin:0 0 14px;padding:12px 14px;border-radius:12px;background:#fff1df;border:1px solid #e9bd82;color:#74420c;font-size:14px;font-weight:650;line-height:1.45;overflow-wrap:anywhere}
+.toast-dalam-dialog[hidden]{display:none}
 .toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,140px);background:var(--teks);color:var(--kartu);padding:12px 20px;border-radius:999px;font-weight:700;transition:transform .35s var(--pegas);z-index:50;max-width:90%;box-shadow:var(--bayang-tinggi)}
 .toast.tampil{transform:translate(-50%,0)}
 
