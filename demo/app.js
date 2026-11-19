@@ -253,7 +253,16 @@
   function nadaDari(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 4; }
   function inisial(s) { return s.split(/\s+/).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase(); }
   var tTimer;
-  function toast(msg) { var t = $('#toast'); t.textContent = msg; t.classList.add('tampil'); clearTimeout(tTimer); tTimer = setTimeout(function () { t.classList.remove('tampil'); }, 2200); }
+  function toast(msg) {
+    var d = $('#dlg');
+    if (d && d.open) {
+      var host = $('#dlgIsi'), notice = $('#toastDalamDialog', host);
+      if (!notice) { notice = document.createElement('div'); notice.id = 'toastDalamDialog'; notice.className = 'toast-dalam-dialog'; host.insertBefore(notice, host.firstChild); }
+      notice.textContent = msg; notice.hidden = false; return;
+    }
+    var t = $('#toast'); t.textContent = msg; t.classList.add('tampil');
+    clearTimeout(tTimer); tTimer = setTimeout(function () { t.classList.remove('tampil'); }, 3500);
+  }
   function unduh(nama, isi, tipe) {
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([isi], { type: tipe }));
