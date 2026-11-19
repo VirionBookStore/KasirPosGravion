@@ -321,7 +321,7 @@
     $$('.hal').forEach(function (s) { s.classList.toggle('aktif', s.id === 'hal-' + hal); });
     try { $('main').scrollTop = 0; } catch (e) {}
     $$('.nav').forEach(function (b) { b.classList.toggle('aktif', b.dataset.hal === hal); });
-    ({ kasir: renderPOS, produk: renderKelola, riwayat: renderRiwayat, laporan: renderLaporan, atur: renderAtur })[hal]();
+    ({ kasir: renderPOS, produk: renderKelola, stok: renderStokCabang, riwayat: renderRiwayat, laporan: renderLaporan, atur: renderAtur })[hal]();
   }
 
   // ---------- POS ----------
@@ -617,6 +617,130 @@
     var r = new FileReader(); r.onload = function () { cb(String(r.result)); input.value = ''; }; r.readAsText(file);
   }
 
+  // ---------- Database Gravion: stok cabang ----------
+  var KPG_API = 'https://script.google.com/macros/s/AKfycbxNBacathj9EZ5JM7QJF1Ruceq4dNgAmPDhkna32hAtiBcZJfkWJ-deN6iXx4J9kR3G/exec';
+  var kpgToken = '', kpgUser = null, kpgCabang = [], kpgBarang = [], kpgSupplier = [], kpgCabangAktif = '';
+  try { kpgToken = sessionStorage.getItem('kpg-token') || ''; } catch (e) {}
+
+  function kpgCall(action, params) {
+    return new Promise(function (resolve, reject) {
+      var cb = 'KPGCB' + Date.now() + Math.floor(Math.random() * 10000), data = Object.assign({ action: action, token: kpgToken }, params || {});
+      data.callback = cb;
+      var qs = Object.keys(data).map(function (k) {
+        var v = data[k]; if (v && typeof v === 'object') v = JSON.stringify(v);
+        return encodeURIComponent(k) + '=' + encodeURIComponent(String(v == null ? '' : v));
+      }).join('&');
+      var sc = document.createElement('script'), selesai = false;
+      function bersih() { if (selesai) return; selesai = true; clearTimeout(tm); sc.remove(); try { delete window[cb]; } catch (e) { window[cb] = undefined; } }
+      var tm = setTimeout(function () { bersih(); reject(new Error('Koneksi ke database timeout. Periksa internet dan URL GAS.')); }, 25000);
+      window[cb] = function (res) { bersih(); if (!res || res.ok !== true) reject(new Error(res && res.error || 'Respons database tidak valid.')); else resolve(res); };
+      sc.onerror = function () { bersih(); reject(new Error('Gagal menghubungi Google Apps Script.')); };
+      sc.src = KPG_API + '?' + qs;
+      document.head.appendChild(sc);
+    });
+  }
+  function kpgHubungkan() {
+    dialog('<h3>Hubungkan database Gravion</h3><div class="form"><label>Username database<input id="kpgUser" autocomplete="username" required></label><label>Password database<input id="kpgPass" type="password" autocomplete="current-password" required></label><p class="redup kecil">Password hanya digunakan untuk proses login dan tidak disimpan. Token sesi disimpan sementara sampai tab ditutup atau sesi berakhir.</p></div><div class="dlg-aksi"><button class="tombol" value="batal">Batal</button><button class="tombol utama" type="button" id="kpgLogin">Hubungkan</button></div>', function (f) {
+      $('#kpgLogin', f).onclick = function () {
+        var username = $('#kpgUser', f).value.trim(), password = $('#kpgPass', f).value;
+        if (!username || !password) return toast('Username dan password wajib diisi');
+        $('#kpgLogin', f).disabled = true; $('#kpgLogin', f).textContent = 'Menghubungkan…';
+        kpgCall('login', { username: username, password: password, token: '' }).then(function (r) {
+          kpgToken = r.token; kpgUser = r.user;
+          try { sessionStorage.setItem('kpg-token', kpgToken); } catch (e) {}
+          tutupDialog(); return kpgMuatAwal();
+        }).then(function () { toast('Database Gravion terhubung'); renderStokCabang(); })
+          .catch(function (e) { $('#kpgLogin', f).disabled = false; $('#kpgLogin', f).textContent = 'Hubungkan'; toast(e.message); });
+      };
+    });
+  }
+  function kpgMuatAwal() {
+    return kpgCall('bootstrap').then(function (r) {
+      kpgUser = r.user || kpgUser; kpgCabang = r.cabang || []; kpgBarang = r.barang || []; kpgSupplier = r.supplier || [];
+      kpgCabangAktif = r.id_cabang_aktif || (kpgCabang[0] && kpgCabang[0].id_cabang) || '';
+      return kpgMuatBarang();
+    });
+  }
+  function kpgMuatBarang() {
+    if (!kpgCabangAktif) { kpgBarang = []; return Promise.resolve(); }
+    return kpgCall('listBarang', { id_cabang: kpgCabangAktif }).then(function (r) { kpgBarang = r.data || []; });
+  }
+  function renderStokCabang() {
+    var connected = !!kpgToken;
+    $('#stokKoneksi').hidden = connected;
+    $('#stokArea').hidden = !connected;
+    if (!connected) return;
+    var sel = $('#stokCabang');
+    sel.innerHTML = kpgCabang.map(function (c) { return '<option value="' + esc(c.id_cabang) + '"' + (c.id_cabang === kpgCabangAktif ? ' selected' : '') + '>' + esc(c.nama_cabang) + '</option>'; }).join('');
+    sel.disabled = kpgCabang.length < 2;
+    var q = ($('#cariStokCabang').value || '').trim().toLowerCase();
+    var list = kpgBarang.filter(function (b) {
+      return [b.nama_barang,b.kode_barang,b.barcode,b.nama_supplier,b.lokasi_rak,b.kategori].join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+    $('#stokInfo').textContent = list.length.toLocaleString('id-ID') + ' dari ' + kpgBarang.length.toLocaleString('id-ID') + ' barang';
+    $('#tabelStokCabang').innerHTML = '<thead><tr><th>Barang</th><th>Kode / Barcode</th><th>Supplier</th><th>Stok</th><th>Lokasi Rak</th><th>Aksi</th></tr></thead><tbody>' +
+      (list.map(function (b) {
+        var low = Number(b.stok || 0) <= 5;
+        return '<tr><td><b>' + esc(b.nama_barang) + '</b><div class="redup kecil">' + esc(b.kategori || '') + '</div></td><td>' + esc(b.kode_barang || '-') + '<div class="redup kecil">' + esc(b.barcode || '') + '</div></td><td>' + esc(b.nama_supplier || '-') + '</td><td><span class="lencana' + (low ? ' merah' : '') + '">' + Number(b.stok || 0).toLocaleString('id-ID') + ' ' + esc(b.satuan || '') + '</span></td><td>' + (b.lokasi_rak ? '<b>' + esc(b.lokasi_rak) + '</b>' : '<span class="redup kecil">Belum diatur</span>') + '</td><td style="white-space:nowrap"><button class="tautan" data-kpg-rak="' + esc(b.id_barang) + '">Rak</button><button class="tautan" data-kpg-masuk="' + esc(b.id_barang) + '">+Masuk</button><button class="tautan" data-kpg-transfer="' + esc(b.id_barang) + '">Transfer</button><button class="tautan" data-kpg-koreksi="' + esc(b.id_barang) + '">Koreksi</button></td></tr>';
+      }).join('') || '<tr><td colspan="6" class="kosong">Barang tidak ditemukan.</td></tr>') + '</tbody>';
+  }
+  function kpgReload() {
+    $('#btnMuatStok').disabled = true; $('#btnMuatStok').textContent = 'Memuat…';
+    kpgMuatBarang().then(renderStokCabang).catch(function (e) { toast(e.message); })
+      .then(function () { $('#btnMuatStok').disabled = false; $('#btnMuatStok').textContent = 'Muat ulang'; });
+  }
+  function kpgBarangById(id) { return kpgBarang.find(function (b) { return b.id_barang === id; }); }
+  function kpgFormRak(b) {
+    dialog('<h3>Lokasi rak · ' + esc(b.nama_barang) + '</h3><div class="form"><label>Lokasi rak<input id="kpgRakInput" value="' + esc(b.lokasi_rak || '') + '" placeholder="Contoh: A-01-02"></label><p class="redup kecil">Lokasi rak berlaku untuk cabang yang sedang dipilih.</p></div><div class="dlg-aksi"><button class="tombol" value="batal">Batal</button><button class="tombol utama" id="kpgRakSave" type="button">Simpan</button></div>', function (f) {
+      $('#kpgRakSave', f).onclick = function () {
+        var lokasi = $('#kpgRakInput', f).value.trim();
+        kpgCall('saveLokasiRak', { id_cabang: kpgCabangAktif, id_barang: b.id_barang, lokasi_rak: lokasi })
+          .then(function () { b.lokasi_rak = lokasi; tutupDialog(); renderStokCabang(); toast('Lokasi rak disimpan'); })
+          .catch(function (e) { toast(e.message); });
+      };
+    });
+  }
+  function kpgFormMasuk(b) {
+    var sup = '<option value="">Pilih supplier (opsional)</option>' + kpgSupplier.map(function (s) { return '<option value="' + esc(s.id_supplier) + '">' + esc(s.nama_supplier) + '</option>'; }).join('');
+    dialog('<h3>Barang masuk</h3><p><b>' + esc(b.nama_barang) + '</b></p><div class="form"><label>Supplier<select id="kpgSupplier">' + sup + '</select></label><label>Jumlah masuk<input id="kpgQty" type="number" min="1" step="1" value="1"></label><label>Harga beli per unit<input id="kpgHarga" type="number" min="0" step="1" value="' + Number(b.harga_beli || 0) + '"></label><label>Catatan<input id="kpgCatatan" placeholder="Nomor faktur / keterangan"></label></div><div class="dlg-aksi"><button class="tombol" value="batal">Batal</button><button class="tombol utama" id="kpgMasukSave" type="button">Simpan barang masuk</button></div>', function (f) {
+      $('#kpgMasukSave', f).onclick = function () {
+        var qty = Math.floor(Number($('#kpgQty', f).value)), harga = Math.max(0, Number($('#kpgHarga', f).value) || 0), sid = $('#kpgSupplier', f).value;
+        if (!(qty > 0)) return toast('Jumlah masuk harus lebih dari 0');
+        var s = kpgSupplier.find(function (x) { return x.id_supplier === sid; });
+        $('#kpgMasukSave', f).disabled = true;
+        kpgCall('stokMasuk', { id_cabang: kpgCabangAktif, id_supplier: sid, nama_supplier: s ? s.nama_supplier : '', catatan: $('#kpgCatatan', f).value.trim(), client_id: 'IN-' + uid(), items: [{ id_barang: b.id_barang, qty: qty, harga_beli: harga }] })
+          .then(function () { tutupDialog(); return kpgReload(); }).then(function () { toast('Barang masuk tersimpan'); })
+          .catch(function (e) { $('#kpgMasukSave', f).disabled = false; toast(e.message); });
+      };
+    });
+  }
+  function kpgFormTransfer(b) {
+    var opts = kpgCabang.filter(function (c) { return c.id_cabang !== kpgCabangAktif && c.status === 'AKTIF'; }).map(function (c) { return '<option value="' + esc(c.id_cabang) + '">' + esc(c.nama_cabang) + '</option>'; }).join('');
+    if (!opts) return toast('Tidak ada cabang tujuan aktif.');
+    dialog('<h3>Transfer stok</h3><p><b>' + esc(b.nama_barang) + '</b> · Stok tersedia: ' + Number(b.stok || 0) + '</p><div class="form"><label>Cabang tujuan<select id="kpgTujuan">' + opts + '</select></label><label>Jumlah transfer<input id="kpgTransferQty" type="number" min="1" step="1" value="1"></label><label>Catatan<input id="kpgTransferNote" placeholder="Keterangan transfer"></label></div><div class="dlg-aksi"><button class="tombol" value="batal">Batal</button><button class="tombol utama" id="kpgTransferSave" type="button">Kirim transfer</button></div>', function (f) {
+      $('#kpgTransferSave', f).onclick = function () {
+        var qty = Math.floor(Number($('#kpgTransferQty', f).value));
+        if (!(qty > 0) || qty > Number(b.stok || 0)) return toast('Jumlah transfer melebihi stok tersedia atau tidak valid.');
+        $('#kpgTransferSave', f).disabled = true;
+        kpgCall('transferStok', { cabang_asal: kpgCabangAktif, cabang_tujuan: $('#kpgTujuan', f).value, catatan: $('#kpgTransferNote', f).value.trim(), client_id: 'TRF-' + uid(), items: [{ id_barang: b.id_barang, qty: qty }] })
+          .then(function () { tutupDialog(); return kpgReload(); }).then(function () { toast('Transfer stok berhasil'); })
+          .catch(function (e) { $('#kpgTransferSave', f).disabled = false; toast(e.message); });
+      };
+    });
+  }
+  function kpgFormKoreksi(b) {
+    dialog('<h3>Koreksi stok</h3><p><b>' + esc(b.nama_barang) + '</b> · Stok sistem: ' + Number(b.stok || 0) + '</p><div class="form"><label>Stok fisik terbaru<input id="kpgStokBaru" type="number" min="0" step="1" value="' + Number(b.stok || 0) + '"></label><label>Alasan koreksi<input id="kpgAlasan" required placeholder="Contoh: hasil stock opname"></label></div><div class="dlg-aksi"><button class="tombol" value="batal">Batal</button><button class="tombol utama" id="kpgKoreksiSave" type="button">Simpan koreksi</button></div>', function (f) {
+      $('#kpgKoreksiSave', f).onclick = function () {
+        var baru = Math.floor(Number($('#kpgStokBaru', f).value)), alasan = $('#kpgAlasan', f).value.trim();
+        if (!(baru >= 0) || !alasan) return toast('Stok baru dan alasan wajib diisi.');
+        $('#kpgKoreksiSave', f).disabled = true;
+        kpgCall('koreksiStok', { id_cabang: kpgCabangAktif, id_barang: b.id_barang, stok_baru: baru, alasan: alasan })
+          .then(function () { tutupDialog(); return kpgReload(); }).then(function () { toast('Koreksi stok tersimpan'); })
+          .catch(function (e) { $('#kpgKoreksiSave', f).disabled = false; toast(e.message); });
+      };
+    });
+  }
+
   // ---------- Event ----------
   function ikatEvent() {
     var pad = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'hapus'];
@@ -647,6 +771,20 @@
       if (pk.classList.contains('buka') && !pk.contains(e.target) && !e.target.closest('#fabKeranjang') && !e.target.closest('dialog')) pk.classList.remove('buka');
     });
 
+    $('#btnHubungkanGAS').onclick = kpgHubungkan;
+    $('#btnMuatStok').onclick = kpgReload;
+    $('#stokCabang').onchange = function () { kpgCabangAktif = this.value; kpgReload(); };
+    $('#cariStokCabang').oninput = renderStokCabang;
+    $('#tabelStokCabang').onclick = function (e) {
+      var b = e.target.closest('[data-kpg-rak],[data-kpg-masuk],[data-kpg-transfer],[data-kpg-koreksi]');
+      if (!b) return;
+      var p = kpgBarangById(b.getAttribute('data-kpg-rak') || b.getAttribute('data-kpg-masuk') || b.getAttribute('data-kpg-transfer') || b.getAttribute('data-kpg-koreksi'));
+      if (!p) return;
+      if (b.hasAttribute('data-kpg-rak')) kpgFormRak(p);
+      else if (b.hasAttribute('data-kpg-masuk')) kpgFormMasuk(p);
+      else if (b.hasAttribute('data-kpg-transfer')) kpgFormTransfer(p);
+      else if (b.hasAttribute('data-kpg-koreksi')) kpgFormKoreksi(p);
+    };
     $('#cariKelola').oninput = renderKelola;
     $('#btnTambahProduk').onclick = function () { formProduk(null); };
     $('#btnKategori').onclick = formKategori;
