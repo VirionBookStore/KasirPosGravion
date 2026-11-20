@@ -362,6 +362,10 @@
     D.supplier = Array.isArray(data.supplier) ? data.supplier : [];
     D.cabang = Array.isArray(data.cabang) ? data.cabang : [];
     D.id_cabang_aktif = data.id_cabang_aktif || user.id_cabang || '';
+    if (!user.id_cabang) user.id_cabang = D.id_cabang_aktif;
+    if (!D.stokPerCabang) D.stokPerCabang = {};
+    D.stokPerCabang[D.id_cabang_aktif] = {};
+    D.produk.forEach(function (p) { D.stokPerCabang[D.id_cabang_aktif][p.id] = p.stok; });
     D.serverInitialized = true;
     D.lastServerSync = data.server_time || new Date().toISOString();
   }
@@ -369,6 +373,8 @@
     var cabang = data.cabang || user.id_cabang || D.id_cabang_aktif || '';
     var stokMap = {};
     (data.stok || []).forEach(function (s) { if (!cabang || s.id_cabang === cabang) stokMap[s.id_barang] = Number(s.stok) || 0; });
+    if (!D.stokPerCabang) D.stokPerCabang = {};
+    D.stokPerCabang[cabang] = stokMap;
     (data.barang || []).forEach(function (row) {
       var mapped = barangDariServer(row), at = D.produk.findIndex(function (p) { return p.id === mapped.id; });
       if (at >= 0) D.produk[at] = Object.assign({}, D.produk[at], mapped);
@@ -383,6 +389,18 @@
     D.lastServerSync = data.server_time || new Date().toISOString();
   }
   function masuk(k, token) {
+    if (k.offline) {
+      var cabangOffline = k.id_cabang || '';
+      var stokCabang = D.stokPerCabang && D.stokPerCabang[cabangOffline];
+      if (!cabangOffline || !stokCabang) {
+        toast('Data stok cabang akun ini belum pernah disimpan di perangkat. Login online sekali saat internet tersedia.');
+        return;
+      }
+      D.produk.forEach(function (p) {
+        p.stok = Object.prototype.hasOwnProperty.call(stokCabang, p.id) ? Number(stokCabang[p.id]) || 0 : 0;
+      });
+      D.id_cabang_aktif = cabangOffline;
+    }
     pengguna = k;
     try {
       if (token) {
@@ -428,6 +446,7 @@
         : KPGApi.call('bootstrap', { token: auth.token });
       return pull.then(function (data) {
         if (D.serverInitialized) terapkanSyncPull(data, user); else terapkanBootstrap(data, user);
+        if (!user.id_cabang) user.id_cabang = D.id_cabang_aktif || '';
         var credential = D.offlineUsers.find(function (x) { return x.id_user === user.id_user; });
         var savePin = pin ? KPGApi.createOfflinePin(pin) : Promise.resolve(null);
         return savePin.then(function (hashed) {
