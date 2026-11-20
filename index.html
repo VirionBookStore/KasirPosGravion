@@ -156,8 +156,8 @@
           <label>Nama bank &amp; no. rekening (transfer)<input name="rekening"></label>
           <button class="tombol utama">Simpan</button>
         </form>
-        <div class="panel">
-          <h3>Kasir &amp; PIN</h3>
+        <div class="panel" hidden>
+          <h3>Kasir &amp; PIN (dikelola melalui database GAS)</h3>
           <ul class="daftar-kasir" id="daftarKasirAtur"></ul>
           <form class="form sebaris" id="formKasir">
             <input name="nama" placeholder="Nama" required>
@@ -178,7 +178,7 @@
           <button class="tombol" id="btnContoh">Isi data contoh</button>
           <button class="tombol bahaya" id="btnReset">Hapus semua data</button>
         </div>
-        <p class="redup kecil">Format CSV produk: nama,kategori,stok,varian (varian ditulis <code>Reguler:15000|Large:20000</code>). Semua data tersimpan di perangkat ini saja (offline).</p>
+        <p class="redup kecil">Format CSV produk: nama,kategori,stok,varian (varian ditulis <code>Reguler:15000|Large:20000</code>). Data utama disimpan lokal agar kasir tetap cepat; transaksi yang menunggu akan dikirim ke GAS saat koneksi tersedia.</p>
       </div>
     </section>
   </main>
