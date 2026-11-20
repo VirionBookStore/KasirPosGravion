@@ -25,9 +25,11 @@
   function request(store, mode, action) {
     return bukaDB().then(function (db) {
       return new Promise(function (resolve, reject) {
-        var tx = db.transaction(store, mode), req = action(tx.objectStore(store));
-        req.onsuccess = function () { resolve(req.result); };
+        var tx = db.transaction(store, mode), req = action(tx.objectStore(store)), result;
+        req.onsuccess = function () { result = req.result; };
         req.onerror = function () { reject(req.error || new Error('Operasi database lokal gagal.')); };
+        tx.oncomplete = function () { resolve(result); };
+        tx.onerror = function () { reject(tx.error || new Error('Transaksi database lokal gagal.')); };
         tx.onabort = function () { reject(tx.error || new Error('Transaksi database lokal dibatalkan.')); };
       });
     });
