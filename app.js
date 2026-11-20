@@ -198,20 +198,17 @@
   tandaiBagian(); hitungTeksBagian();
 
   function simpan() {
-    // IndexedDB menjadi penyimpanan persisten utama. localStorage dipertahankan
-    // sebagai salinan kompatibilitas/migrasi untuk versi lama.
-    var snapshot;
-    try { snapshot = JSON.stringify(D); } catch (e) { toast('Data tidak dapat diserialisasi'); return Promise.reject(e); }
-    try { localStorage.setItem(KUNCI, snapshot); } catch (e) {
-      // Batas kuota localStorage tidak boleh menggagalkan penyimpanan IndexedDB.
-    }
+    // IndexedDB adalah penyimpanan persisten utama; localStorage hanya fallback
+    // untuk browser lama atau jika IndexedDB tidak tersedia.
     if (window.KPGStorage && KPGStorage.saveState) {
       return KPGStorage.saveState(D).catch(function (e) {
-        toast('Penyimpanan lokal gagal: ' + (e.message || e));
+        try { localStorage.setItem(KUNCI, JSON.stringify(D)); } catch (er) {}
+        toast('IndexedDB gagal, salinan kompatibilitas dicoba: ' + (e.message || e));
         throw e;
       });
     }
-    return Promise.resolve();
+    try { localStorage.setItem(KUNCI, JSON.stringify(D)); return Promise.resolve(); }
+    catch (e) { toast('Gagal menyimpan data lokal: ' + (e.message || e)); return Promise.reject(e); }
   }
 
   // ---------- Utilitas ----------
