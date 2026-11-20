@@ -380,6 +380,8 @@
       if (at >= 0) D.produk[at] = Object.assign({}, D.produk[at], mapped);
       else D.produk.push(mapped);
     });
+    var deleted = Array.isArray(data.barang_hapus) ? data.barang_hapus.map(String) : [];
+    if (deleted.length) D.produk = D.produk.filter(function (p) { return deleted.indexOf(String(p.id)) < 0; });
     D.produk.forEach(function (p) { p.stok = Object.prototype.hasOwnProperty.call(stokMap, p.id) ? stokMap[p.id] : 0; });
     D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
     if (Array.isArray(data.supplier)) D.supplier = data.supplier;
