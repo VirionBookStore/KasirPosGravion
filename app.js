@@ -70,12 +70,20 @@
   function semai(s) { return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
 
   var D;
-  function muat() {
-    try { D = JSON.parse(localStorage.getItem(KUNCI)); } catch (e) { D = null; }
-    if (!D || !D.produk) { D = dataContoh(); simpan(); }
+  function muat(stateAwal) {
+    D = stateAwal || null;
+    if (!D) {
+      try { D = JSON.parse(localStorage.getItem(KUNCI)); } catch (e) { D = null; }
+    }
+    if (!D || !Array.isArray(D.produk)) { D = dataContoh(); simpan(); }
     // Migrasi data lama: nama bawaan lama dianggap belum diubah pengguna.
+    if (!D.toko) D.toko = dataKosong().toko;
     if (D.toko.namaDariTema === undefined) D.toko.namaDariTema = D.toko.nama === 'Kopi Senja' || D.toko.nama === 'Toko Saya';
     if (D.toko.namaDariTema) D.toko.nama = NAMA_TEMA;
+    if (!Array.isArray(D.kategori)) D.kategori = [];
+    if (!Array.isArray(D.transaksi)) D.transaksi = [];
+    if (!Array.isArray(D.kasir) || !D.kasir.length) D.kasir = dataKosong().kasir;
+    if (typeof D.nomor !== 'number') D.nomor = D.transaksi.length;
   }
 
   // ---------- Tema (customizer Maliki Studio, lihat tema.css & tema.js) ----------
@@ -189,7 +197,22 @@
   }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-mode'] });
   tandaiBagian(); hitungTeksBagian();
 
-  function simpan() { try { localStorage.setItem(KUNCI, JSON.stringify(D)); } catch (e) { toast('Gagal menyimpan: memori penuh'); } }
+  function simpan() {
+    // IndexedDB menjadi penyimpanan persisten utama. localStorage dipertahankan
+    // sebagai salinan kompatibilitas/migrasi untuk versi lama.
+    var snapshot;
+    try { snapshot = JSON.stringify(D); } catch (e) { toast('Data tidak dapat diserialisasi'); return Promise.reject(e); }
+    try { localStorage.setItem(KUNCI, snapshot); } catch (e) {
+      // Batas kuota localStorage tidak boleh menggagalkan penyimpanan IndexedDB.
+    }
+    if (window.KPGStorage && KPGStorage.saveState) {
+      return KPGStorage.saveState(D).catch(function (e) {
+        toast('Penyimpanan lokal gagal: ' + (e.message || e));
+        throw e;
+      });
+    }
+    return Promise.resolve();
+  }
 
   // ---------- Utilitas ----------
   var $ = function (s, r) { return (r || document).querySelector(s); };
@@ -698,10 +721,32 @@
   }
 
   // ---------- Mulai ----------
-  muat(); ikatEvent(); pasangLogo();
-  var sesi = null; try { sesi = sessionStorage.getItem('kasir-sesi'); } catch (e) {}
-  var k = sesi && D.kasir.find(function (x) { return x.id === sesi; });
-  if (k) masuk(k); else if (/[?&]demo\b/.test(location.search)) { masuk(D.kasir[0]); [0, 0, 3, 8].forEach(function (i, n) { var p = D.produk[i]; if (p) tambahKeKeranjang(p, p.varian[n % p.varian.length]); }); } else tampilMasuk();
+  function jalankanAplikasi(state) {
+    muat(state);
+    ikatEvent();
+    pasangLogo();
+    var sesi = null; try { sesi = sessionStorage.getItem('kasir-sesi'); } catch (e) {}
+    var k = sesi && D.kasir.find(function (x) { return x.id === sesi; });
+    if (k) masuk(k);
+    else if (/[?&]demo\\b/.test(location.search)) {
+      masuk(D.kasir[0]);
+      [0, 0, 3, 8].forEach(function (i, n) { var p = D.produk[i]; if (p) tambahKeKeranjang(p, p.varian[n % p.varian.length]); });
+    } else tampilMasuk();
+  }
+
+  // Baca IndexedDB lebih dulu. Data localStorage lama dimigrasikan tanpa dihapus.
+  if (window.KPGStorage && KPGStorage.init) {
+    KPGStorage.init().then(function (hasil) {
+      jalankanAplikasi(hasil.state);
+      if (hasil.migrated) simpan();
+    }).catch(function (err) {
+      console.error('IndexedDB tidak siap, memakai penyimpanan kompatibilitas:', err);
+      jalankanAplikasi(null);
+      toast('Mode kompatibilitas lokal aktif');
+    });
+  } else {
+    jalankanAplikasi(null);
+  }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(function () {});
 
