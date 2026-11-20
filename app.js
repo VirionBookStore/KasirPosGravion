@@ -535,6 +535,7 @@
 
   // ---------- POS ----------
   var keranjang = [], katAktif = 'Semua';
+  var jumlahProdukTampil = 80;
   function stokTerpakai(pid) { return keranjang.filter(function (i) { return i.pid === pid; }).reduce(function (s, i) { return s + i.qty; }, 0); }
 
   function renderPOS() {
@@ -543,14 +544,15 @@
       return '<button class="chip' + (k === katAktif ? ' aktif' : '') + '" data-k="' + esc(k) + '" aria-pressed="' + (k === katAktif) + '">' + esc(k) + '<span class="chip-n">' + n + '</span></button>'; }).join('');
     var q = $('#cariProduk').value.trim().toLowerCase();
     var list = D.produk.filter(function (p) { return (katAktif === 'Semua' || p.kategori === katAktif) && p.nama.toLowerCase().indexOf(q) > -1; });
-    $('#gridProduk').innerHTML = list.length ? list.map(function (p, n) {
+    var tampil = list.slice(0, jumlahProdukTampil);
+    $('#gridProduk').innerHTML = list.length ? tampil.map(function (p, n) {
       var sisa = p.stok - stokTerpakai(p.id), diKer = stokTerpakai(p.id);
       var min = Math.min.apply(null, p.varian.map(function (v) { return v.harga; }));
       return '<button class="kartu-produk' + (diKer ? ' dipilih' : '') + '" data-id="' + p.id + '" style="--i:' + Math.min(n, 14) + '"' + (sisa <= 0 ? ' disabled' : '') + ' aria-label="' + esc(p.nama) + ', ' + (p.varian.length > 1 ? 'mulai ' : '') + rp(min) + (sisa <= 0 ? ', stok habis' : '') + '">' +
         '<div class="thumb" data-nada="' + nadaDari(p.kategori + p.nama) + '">' + ilustrasi(p) + (diKer ? '<span class="di-ker">' + diKer + '</span>' : '') + (sisa <= 0 ? '<span class="habis">Habis</span>' : '') + '</div>' +
         '<span class="kp-teks"><b>' + esc(p.nama) + '</b><span class="stok' + (sisa <= 5 ? ' tipis' : '') + '">' + (sisa <= 0 ? 'Stok habis' : (sisa <= 5 ? 'Sisa ' : 'Stok ') + sisa) + (p.varian.length > 1 ? ' · ' + p.varian.length + ' varian' : '') + '</span></span>' +
         '<span class="kp-bawah"><span class="harga">' + (p.varian.length > 1 ? '<small>mulai</small> ' : '') + rp(min) + '</span><span class="tambah" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></span></button>';
-    }).join('') : '<div class="kosong"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><b>Produk tidak ditemukan</b><span>Coba kata lain atau pilih kategori "Semua".</span></div>';
+    }).join('') + (list.length > tampil.length ? '<button type="button" data-muat-lagi class="tombol" style="grid-column:1/-1;width:100%;margin:8px 0 18px">Tampilkan 80 produk berikutnya (' + (list.length - tampil.length) + ' tersisa)</button>' : '') : '<div class="kosong"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><b>Produk tidak ditemukan</b><span>Coba kata lain atau pilih kategori "Semua".</span></div>';
     renderKeranjang();
   }
 
@@ -875,7 +877,7 @@
 
     $('#cariProduk').oninput = renderPOS;
     $('#chipKategori').onclick = function (e) { var c = e.target.closest('.chip'); if (c) { katAktif = c.dataset.k; renderPOS(); } };
-    $('#gridProduk').onclick = function (e) { var k = e.target.closest('.kartu-produk'); if (k) pilihVarian(D.produk.find(function (p) { return p.id === k.dataset.id; })); };
+    $('#gridProduk').onclick = function (e) { var more = e.target.closest('[data-muat-lagi]'); if (more) { jumlahProdukTampil += 80; renderPOS(); return; } var k = e.target.closest('.kartu-produk'); if (k) pilihVarian(D.produk.find(function (p) { return p.id === k.dataset.id; })); };
     $('#kerDaftar').onclick = function (e) {
       var b = e.target.closest('[data-n]'); if (!b) return;
       var it = keranjang[+b.dataset.n], d = +b.dataset.d;
