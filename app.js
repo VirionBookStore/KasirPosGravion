@@ -310,12 +310,12 @@
     var mi = $('#masukIlus'); if (mi) mi.innerHTML = D.produk.slice(0, 6).map(function (p, n) { return '<span class="thumb" data-nada="' + nadaDari(p.kategori + p.nama) + '" style="--i:' + n + '">' + ilustrasi(p) + '</span>'; }).join('');
     kasirDipilih = D.offlineUsers[0] || null; pinBuffer = '';
     $('#daftarKasir').innerHTML = D.offlineUsers.length ? D.offlineUsers.map(function (k) { return '<button data-id="' + esc(k.id_user) + '">' + esc(k.nama) + '</button>'; }).join('') : '<span class="redup kecil">Belum ada PIN offline. Login online terlebih dahulu.</span>';
-    $('#daftarKasir button').forEach(function (b) {
+    $$('#daftarKasir button').forEach(function (b) {
       b.classList.toggle('aktif', !!kasirDipilih && b.dataset.id === kasirDipilih.id_user);
       b.onclick = function () {
         kasirDipilih = D.offlineUsers.find(function (k) { return k.id_user === b.dataset.id; });
         pinBuffer = ''; tampilMasuk.titik();
-        $('#daftarKasir button').forEach(function (x) { x.classList.toggle('aktif', x === b); });
+        $$('#daftarKasir button').forEach(function (x) { x.classList.toggle('aktif', x === b); });
       };
     });
     $('#pinTitik').hidden = !kasirDipilih;
@@ -406,7 +406,7 @@
     $('#layarMasuk').hidden = true; $('#aplikasi').hidden = false;
     $('#namaKasir').textContent = k.nama + (k.peran === 'admin' ? ' · admin' : '');
     $('#namaTokoNav').textContent = D.toko.nama;
-    $('[data-hal="produk"],[data-hal="atur"]').forEach(function (b) { b.hidden = !isAdmin(); });
+    $$('[data-hal="produk"],[data-hal="atur"]').forEach(function (b) { b.hidden = !isAdmin(); });
     var tg = $('#tglHariIni'); if (tg) tg.textContent = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var av = $('#avatarKasir'); if (av) av.textContent = inisial(k.nama);
     buka('kasir');
