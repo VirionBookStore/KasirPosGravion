@@ -26,3 +26,13 @@ Kemudian coba login dari branch pengujian. Password asli tidak dikirim sebagai p
 
 ## Catatan
 Jangan gabungkan branch ini ke `main` atau arahkan produksi ke branch ini sebelum login, bootstrap, antrean transaksi, dan sinkronisasi stok diuji pada akun/cabang pengujian.
+
+## Perilaku frontend pada branch pengujian
+- Login online memakai `loginChallenge` dan `loginVerify`; password asli tidak dikirim sebagai parameter URL.
+- Saat login online pertama pada perangkat, pengguna wajib membuat PIN offline 4 angka.
+- PIN offline disimpan sebagai hash PBKDF2 di IndexedDB, bukan sebagai PIN teks biasa.
+- Master barang dan stok cabang diambil dari GAS lalu disimpan lokal. Pada login berikutnya, frontend menggunakan `syncPull` berdasarkan waktu sinkronisasi terakhir.
+- Checkout disimpan ke IndexedDB dan antrean `outbox`; transaksi dikirim dengan `syncPush` ketika token milik kasir yang sama tersedia dan koneksi kembali aktif.
+
+## Batas tahap pengujian ini
+Sinkronisasi transaksi penjualan sudah disambungkan pada frontend. Retur, stok masuk, transfer, koreksi stok, perubahan master barang dari menu lokal, dan penarikan riwayat transaksi server belum seluruhnya dihubungkan ke UI utama. Jangan gunakan branch ini sebagai produksi sebelum modul-modul tersebut diaudit dan diuji.
