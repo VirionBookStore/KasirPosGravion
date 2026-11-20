@@ -49,6 +49,14 @@
     crypto.getRandomValues(bytes);
     return hex(bytes);
   }
+  function derivePin(pin, saltHex) {
+    if (!window.crypto || !crypto.subtle) return Promise.reject(new Error('Browser tidak mendukung verifikasi PIN aman.'));
+    var salt = new Uint8Array((String(saltHex).match(/.{2}/g) || []).map(function (x) { return parseInt(x, 16); }));
+    return crypto.subtle.importKey('raw', new TextEncoder().encode(String(pin)), 'PBKDF2', false, ['deriveBits'])
+      .then(function (key) {
+        return crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: 120000, hash: 'SHA-256' }, key, 256);
+      }).then(hex);
+  }
   function login(username, password) {
     username = String(username || '').trim().toLowerCase();
     password = String(password || '');
@@ -63,12 +71,12 @@
   }
   function buatPin(pin) {
     var salt = randomSalt();
-    return digest(salt + '|' + String(pin)).then(function (pinHash) {
+    return derivePin(pin, salt).then(function (pinHash) {
       return { salt: salt, pin_hash: pinHash };
     });
   }
   function verifikasiPin(pin, salt) {
-    return digest(String(salt) + '|' + String(pin));
+    return derivePin(pin, salt);
   }
 
   window.KPGApi = {
