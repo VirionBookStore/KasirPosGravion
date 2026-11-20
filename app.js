@@ -388,6 +388,15 @@
       if (token) {
         sessionStorage.setItem('kpg-token', token);
         sessionStorage.setItem('kpg-user', JSON.stringify(k));
+      } else if (k.offline) {
+        // Pertahankan token online hanya bila milik akun yang sama, agar antrean
+        // offline dapat dikirim saat internet kembali tanpa memakai akun lain.
+        var cached = null;
+        try { cached = JSON.parse(sessionStorage.getItem('kpg-user') || 'null'); } catch (e) {}
+        if (!cached || cached.id_user !== k.id_user) {
+          sessionStorage.removeItem('kpg-token');
+          sessionStorage.removeItem('kpg-user');
+        }
       } else {
         sessionStorage.removeItem('kpg-token');
         sessionStorage.removeItem('kpg-user');
@@ -401,6 +410,7 @@
     var tg = $('#tglHariIni'); if (tg) tg.textContent = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var av = $('#avatarKasir'); if (av) av.textContent = inisial(k.nama);
     buka('kasir');
+    syncPending();
   }
   function loginOnline(e) {
     e.preventDefault();
