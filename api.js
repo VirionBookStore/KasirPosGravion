@@ -9,13 +9,23 @@
     return new Promise(function (resolve, reject) {
       var cb = '__kpg_jsonp_' + Date.now() + '_' + (++sequence);
       var script = document.createElement('script');
-      var timer = setTimeout(function () { cleanup(); reject(new Error('Waktu koneksi GAS habis. Periksa internet lalu coba lagi.')); }, 30000);
+      var callbackReceived = false;
+      var settled = false;
+      var timer = setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error('GAS tidak merespons dalam 15 detik. Periksa deployment Web App dan koneksi internet.'));
+      }, 15000);
       function cleanup() {
         clearTimeout(timer);
         try { delete window[cb]; } catch (e) { window[cb] = undefined; }
         if (script.parentNode) script.parentNode.removeChild(script);
       }
       window[cb] = function (result) {
+        if (settled) return;
+        callbackReceived = true;
+        settled = true;
         cleanup();
         if (!result || result.ok !== true) reject(new Error(result && result.error || 'Permintaan ke GAS gagal.'));
         else resolve(result);
@@ -29,8 +39,22 @@
         query.set(key, typeof value === 'string' ? value : JSON.stringify(value));
       });
       script.async = true;
-      script.referrerPolicy = 'no-referrer';
-      script.onerror = function () { cleanup(); reject(new Error('Tidak dapat menghubungi GAS. Periksa URL dan deployment Web App.')); };
+      script.onerror = function () {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error('Browser gagal memuat respons GAS. Periksa akses Web App dan koneksi internet.'));
+      };
+      script.onload = function () {
+        // GAS ContentService harus menjalankan callback JSONP. Jika file termuat
+        // tetapi callback tidak dipanggil, tampilkan error langsung, bukan loading tanpa akhir.
+        window.setTimeout(function () {
+          if (settled || callbackReceived) return;
+          settled = true;
+          cleanup();
+          reject(new Error('GAS merespons tanpa format JSONP. Pastikan deployment memakai Code.gs versi 1.1.4.'));
+        }, 0);
+      };
       script.src = API_URL + '?' + query.toString();
       document.head.appendChild(script);
     });
