@@ -474,7 +474,7 @@
     var repair = D.transaksi.filter(function (t) { return t.client_id && t.sync_status !== 'TERSINKRON'; })
       .reduce(function (chain, trx) {
         return chain.then(function () {
-          return KPGStorage.enqueue({ client_id: trx.client_id, payload: payloadTransaksiLokal(trx),
+          return KPGStorage.enqueue({ client_id: trx.client_id, owner_user_id: trx.id_user || '', payload: payloadTransaksiLokal(trx),
             created_at: trx.waktu, attempts: 0 });
         });
       }, Promise.resolve());
@@ -626,7 +626,7 @@
     var h = hitung(), w = new Date();
     D.nomor = (D.nomor || 0) + 1;
     var clientId = 'KPG-' + uid() + '-' + w.getTime();
-    var trx = { id: noTrx(w, D.nomor), waktu: w.toISOString(), kasir: pengguna.nama,
+    var trx = { id: noTrx(w, D.nomor), waktu: w.toISOString(), kasir: pengguna.nama, id_user: pengguna.id_user || '',
       items: keranjang.map(function (i) { return Object.assign({}, i); }), subtotal: h.subtotal,
       diskon: h.diskon, total: h.total, metode: metode, bayar: bayar, kembali: bayar - h.total,
       client_id: clientId, id_cabang: pengguna.id_cabang || D.id_cabang_aktif || '', sync_status: 'MENUNGGU' };
@@ -640,7 +640,7 @@
     };
     var saved = simpan();
     if (window.KPGStorage) {
-      Promise.all([saved, KPGStorage.enqueue({ client_id: clientId, payload: payload, created_at: w.toISOString(), attempts: 0 })])
+      Promise.all([saved, KPGStorage.enqueue({ client_id: clientId, owner_user_id: trx.id_user, payload: payload, created_at: w.toISOString(), attempts: 0 })])
         .then(function () { syncPending(); })
         .catch(function (err) { console.error('Gagal menyimpan antrean transaksi:', err); toast('Peringatan: antrean sinkronisasi belum tersimpan. Segera backup data.'); });
     }
@@ -827,7 +827,13 @@
 
     $('#navBawah').innerHTML = $$('.samping .nav').map(function (b) { return b.outerHTML; }).join('');
     document.addEventListener('click', function (e) { var n = e.target.closest('.nav'); if (n) buka(n.dataset.hal); });
-    $('#btnKeluar').onclick = function () { pengguna = null; keranjang = []; try { sessionStorage.removeItem('kasir-sesi'); sessionStorage.removeItem('kpg-token'); sessionStorage.removeItem('kpg-user'); } catch (er) {} tampilMasuk(); };
+    $('#btnKeluar').onclick = function () {
+      var token = null; try { token = sessionStorage.getItem('kpg-token'); } catch (er) {}
+      if (token) KPGApi.call('logout', { token: token }).catch(function () {});
+      pengguna = null; keranjang = [];
+      try { sessionStorage.removeItem('kasir-sesi'); sessionStorage.removeItem('kpg-token'); sessionStorage.removeItem('kpg-user'); } catch (er) {}
+      tampilMasuk();
+    };
     $('#formLoginOnline').onsubmit = loginOnline;
     if (window.addEventListener) window.addEventListener('online', syncPending);
 
