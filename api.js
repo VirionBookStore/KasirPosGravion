@@ -45,16 +45,9 @@
         cleanup();
         reject(new Error('Browser gagal memuat respons GAS. Periksa akses Web App dan koneksi internet.'));
       };
-      script.onload = function () {
-        // GAS ContentService harus menjalankan callback JSONP. Jika file termuat
-        // tetapi callback tidak dipanggil, tampilkan error langsung, bukan loading tanpa akhir.
-        window.setTimeout(function () {
-          if (settled || callbackReceived) return;
-          settled = true;
-          cleanup();
-          reject(new Error('GAS merespons tanpa format JSONP. Pastikan deployment memakai Code.gs versi 1.1.4.'));
-        }, 0);
-      };
+      // Jangan menganggap event onload sebagai bukti callback gagal.
+      // GAS ContentService dapat melewati redirect googleusercontent; tunggu callback
+      // JSONP yang sebenarnya. Timeout 15 detik di atas tetap menangani respons macet.
       script.src = API_URL + '?' + query.toString();
       document.head.appendChild(script);
     });
