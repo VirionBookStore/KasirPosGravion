@@ -380,7 +380,7 @@
       if (at >= 0) D.produk[at] = Object.assign({}, D.produk[at], mapped);
       else D.produk.push(mapped);
     });
-    D.produk.forEach(function (p) { if (Object.prototype.hasOwnProperty.call(stokMap, p.id)) p.stok = stokMap[p.id]; });
+    D.produk.forEach(function (p) { p.stok = Object.prototype.hasOwnProperty.call(stokMap, p.id) ? stokMap[p.id] : 0; });
     D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
     if (Array.isArray(data.supplier)) D.supplier = data.supplier;
     if (Array.isArray(data.cabang_list)) D.cabang = data.cabang_list;
