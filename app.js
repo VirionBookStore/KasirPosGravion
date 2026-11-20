@@ -406,7 +406,7 @@
     e.preventDefault();
     var form = e.target, username = form.elements.username.value.trim(), password = form.elements.password.value;
     var pin = form.elements.pinOffline.value.trim(), status = $('#loginOnlineStatus');
-    var existing = D.offlineUsers.find(function (x) { return x.username.toLowerCase() === username.toLowerCase(); });
+    var existing = D.offlineUsers.find(function (x) { return String(x.username || '').toLowerCase() === username.toLowerCase(); });
     if (!existing && !/^\d{4}$/.test(pin)) { status.textContent = 'Login pertama di perangkat ini memerlukan PIN offline 4 angka.'; return; }
     if (pin && !/^\d{4}$/.test(pin)) { status.textContent = 'PIN offline harus tepat 4 angka.'; return; }
     status.textContent = 'Memeriksa akun ke GAS...';
@@ -443,12 +443,32 @@
     }).finally(function () { form.querySelector('button[type="submit"]').disabled = false; });
   }
   var sedangSync = false;
+  function payloadTransaksiLokal(trx) {
+    return { client_id: trx.client_id, no_nota: trx.id, waktu: trx.waktu,
+      id_cabang: trx.id_cabang || D.id_cabang_aktif || '',
+      subtotal: trx.subtotal, diskon: trx.diskon, total: trx.total,
+      metode_bayar: String(trx.metode || 'tunai').toUpperCase(),
+      bayar: trx.bayar, kembali: trx.kembali,
+      items: (trx.items || []).map(function (i) {
+        return { id_barang: i.pid, nama_barang: i.nama, varian: i.varian,
+          qty: i.qty, harga: i.harga, diskon_item: Number(i.diskon_item) || 0 };
+      }) };
+  }
   function syncPending() {
     var token = null;
     try { token = sessionStorage.getItem('kpg-token'); } catch (e) {}
     if (!token || !navigator.onLine || sedangSync || !window.KPGStorage) return;
     sedangSync = true;
-    KPGStorage.listOutbox(100).then(function (queue) {
+    // Pulihkan antrean dari transaksi lokal yang belum mendapat ACK server.
+    // Ini juga memperbaiki kondisi jika browser sempat berhenti di antara dua penulisan.
+    var repair = D.transaksi.filter(function (t) { return t.client_id && t.sync_status !== 'TERSINKRON'; })
+      .reduce(function (chain, trx) {
+        return chain.then(function () {
+          return KPGStorage.enqueue({ client_id: trx.client_id, payload: payloadTransaksiLokal(trx),
+            created_at: trx.waktu, attempts: 0 });
+        });
+      }, Promise.resolve());
+    repair.then(function () { return KPGStorage.listOutbox(100); }).then(function (queue) {
       return queue.reduce(function (chain, item) {
         return chain.then(function () {
           return KPGApi.call('syncPush', { token: token, transaksi: [item.payload] }).then(function (result) {
