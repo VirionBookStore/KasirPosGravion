@@ -75,7 +75,7 @@
     if (!D) {
       try { D = JSON.parse(localStorage.getItem(KUNCI)); } catch (e) { D = null; }
     }
-    if (!D || !Array.isArray(D.produk)) { D = dataContoh(); simpan(); }
+    if (!D || !Array.isArray(D.produk)) { D = dataKosong(); simpan(); }
     // Migrasi data lama: nama bawaan lama dianggap belum diubah pengguna.
     if (!D.toko) D.toko = dataKosong().toko;
     if (D.toko.namaDariTema === undefined) D.toko.namaDariTema = D.toko.nama === 'Kopi Senja' || D.toko.nama === 'Toko Saya';
@@ -719,6 +719,7 @@
 
   // ---------- Mulai ----------
   function jalankanAplikasi(state) {
+    if (!state && /[?&]demo\\b/.test(location.search)) state = dataContoh();
     muat(state);
     ikatEvent();
     pasangLogo();
