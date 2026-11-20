@@ -37,11 +37,22 @@
   <div class="masuk-form">
   <div class="masuk-kartu">
     <h1 id="masukToko" data-tema-nama>Kasir UMKM</h1>
-    <p class="redup">Pilih kasir, lalu masukkan PIN.</p>
+    <p class="redup">Masuk dengan akun GAS. Jika internet terputus, gunakan PIN lokal yang sudah didaftarkan.</p>
+    <form id="formLoginOnline" class="form" autocomplete="on" style="margin:16px 0 20px;text-align:left">
+      <label>Username<input name="username" autocomplete="username" required></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <label>PIN lokal offline (4 angka)<input name="pinOffline" type="password" inputmode="numeric" pattern="\\d{4}" maxlength="4" placeholder="Wajib saat pertama kali login"></label>
+      <button class="tombol utama" type="submit" style="width:100%">Login online</button>
+      <p id="loginOnlineStatus" class="redup kecil" aria-live="polite" style="min-height:18px;margin:8px 0 0"></p>
+    </form>
+    <div style="border-top:1px solid var(--garis);padding-top:14px">
+      <h3 style="margin:0 0 6px">Login offline</h3>
+      <p class="redup kecil" style="margin:0 0 10px">Gunakan PIN lokal yang dibuat setelah login online berhasil.</p>
+    </div>
     <div id="daftarKasir" class="pilih-kasir" role="group" aria-label="Pilih kasir"></div>
     <div class="pin-titik" id="pinTitik" aria-label="PIN 4 angka"><i></i><i></i><i></i><i></i></div>
     <div class="pad" id="padPin"></div>
-    <p class="redup kecil">PIN contoh: Admin 1234 · Sari 1111</p>
+    <p class="redup kecil">PIN offline hanya tersedia untuk akun yang pernah login online pada perangkat ini.</p>
   </div>
   </div>
 </section>
@@ -183,6 +194,7 @@
 <div id="toast" class="toast" role="status"></div>
 
 <script src="storage.js"></script>
+<script src="api.js"></script>
 <script src="app.js"></script>
   <p class="kredit-maliki" style="margin:24px auto 112px;padding:0 16px;text-align:center;font:12px/1.5 system-ui,sans-serif;opacity:.7">Template oleh <a href="https://malikisaputra.biz.id" target="_blank" rel="noopener" style="color:inherit">@malikisaputra</a></p>
 </body>
