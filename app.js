@@ -719,14 +719,14 @@
 
   // ---------- Mulai ----------
   function jalankanAplikasi(state) {
-    if (!state && /[?&]demo\\b/.test(location.search)) state = dataContoh();
+    if (!state && /[?&]demo\b/.test(location.search)) state = dataContoh();
     muat(state);
     ikatEvent();
     pasangLogo();
     var sesi = null; try { sesi = sessionStorage.getItem('kasir-sesi'); } catch (e) {}
     var k = sesi && D.kasir.find(function (x) { return x.id === sesi; });
     if (k) masuk(k);
-    else if (/[?&]demo\\b/.test(location.search)) {
+    else if (/[?&]demo\b/.test(location.search)) {
       masuk(D.kasir[0]);
       [0, 0, 3, 8].forEach(function (i, n) { var p = D.produk[i]; if (p) tambahKeKeranjang(p, p.varian[n % p.varian.length]); });
     } else tampilMasuk();
