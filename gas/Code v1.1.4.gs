@@ -327,10 +327,12 @@ function syncPull_(u,p) {
   const cabang=cabangAkses_(u,p.id_cabang||'');
   const since=String(p.since||'');
   function changed(rows,field){return rows.filter(x=>!since||String(x[field]||'')>=since);}
-  const barang=changed(getRows_('Barang').filter(x=>x.status!=='HAPUS'),'diubah_pada');
+  const semuaBarang=getRows_('Barang');
+  const barang=changed(semuaBarang.filter(x=>x.status!=='HAPUS'),'diubah_pada');
+  const barang_hapus=changed(semuaBarang.filter(x=>x.status==='HAPUS'),'diubah_pada').map(x=>String(x.id_barang));
   const promo=changed(getRows_('Promo').filter(x=>x.status!=='HAPUS'),'diubah_pada');
   const stok=getRows_('Stok_Cabang').filter(x=>!cabang||x.id_cabang===cabang);
-  return {ok:true,server_time:now_(),cabang:cabang,barang:barang,promo:promo,stok:stok,supplier:getRows_('Supplier').filter(x=>x.status!=='HAPUS'),cabang_list:u.peran==='OWNER'?getRows_('Cabang'):getRows_('Cabang').filter(x=>x.id_cabang===u.id_cabang)};
+  return {ok:true,server_time:now_(),cabang:cabang,barang:barang,barang_hapus:barang_hapus,promo:promo,stok:stok,supplier:getRows_('Supplier').filter(x=>x.status!=='HAPUS'),cabang_list:u.peran==='OWNER'?getRows_('Cabang'):getRows_('Cabang').filter(x=>x.id_cabang===u.id_cabang)};
 }
 function syncPush_(u,p) {
   const list=Array.isArray(p.transaksi)?p.transaksi:[]; const hasil=[];
