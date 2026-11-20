@@ -646,14 +646,28 @@
       document.head.appendChild(sc);
     });
   }
+  function kpgDigest(value) {
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(value))).then(function (buffer) {
+      return Array.prototype.map.call(new Uint8Array(buffer), function (b) { return ('0'+b.toString(16)).slice(-2); }).join('');
+    });
+  }
+  function kpgLoginAman(username,password) {
+    return kpgCall('loginChallenge',{username:username,token:''}).then(function(ch) {
+      return kpgDigest(ch.salt+'|'+password).then(function(ph) {
+        return kpgDigest(ch.nonce+'|'+ph);
+      }).then(function(proof) {
+        return kpgCall('loginVerify',{username:username,nonce:ch.nonce,proof:proof,token:''});
+      });
+    });
+  }
   function kpgHubungkan() {
-    dialog('<h3>Hubungkan database Gravion</h3><div class="form"><label>Username database<input id="kpgUser" autocomplete="username" required></label><label>Password database<input id="kpgPass" type="password" autocomplete="current-password" required></label><p class="redup kecil">Password hanya digunakan untuk proses login dan tidak disimpan. Token sesi disimpan sementara sampai tab ditutup atau sesi berakhir.</p></div><div class="dlg-aksi"><button class="tombol" value="batal">Batal</button><button class="tombol utama" type="button" id="kpgLogin">Hubungkan</button></div>', function (f) {
+    dialog('<h3>Hubungkan database Gravion</h3><div class="form"><label>Username database<input id="kpgUser" autocomplete="username" required></label><label>Password database<input id="kpgPass" type="password" autocomplete="current-password" required></label><p class="redup kecil">Password asli tidak dikirim melalui URL. Token sesi disimpan sementara sampai tab ditutup atau sesi berakhir.</p></div><div class="dlg-aksi"><button class="tombol" value="batal">Batal</button><button class="tombol utama" type="button" id="kpgLogin">Hubungkan</button></div>', function (f) {
       $('#kpgLogin', f).onclick = function () {
         var username = $('#kpgUser', f).value.trim(), password = $('#kpgPass', f).value;
         if (!username || !password) return toast('Username dan password wajib diisi');
         $('#kpgLogin', f).disabled = true; $('#kpgLogin', f).textContent = 'Menghubungkan…';
-        kpgCall('login', { username: username, password: password, token: '' }).then(function (r) {
-          kpgToken = r.token; kpgUser = r.user;
+        kpgLoginAman(username,password).then(function (r) {
+          kpgToken = r.token; kpgUser = r.user; password = '';
           try { sessionStorage.setItem('kpg-token', kpgToken); } catch (e) {}
           tutupDialog(); return kpgMuatAwal();
         }).then(function () {
@@ -686,15 +700,17 @@
         hargaBeli: Number(b.harga_beli || 0), varian: [{ nama: 'Normal', harga: harga }] };
     });
     D = D || dataKosong();
+    // Sinkronisasi master barang tidak boleh menghapus riwayat transaksi lokal.
+    var transaksiLokal = Array.isArray(D.transaksi) ? D.transaksi : [];
+    var nomorLokal = Number(D.nomor) || 0;
     D.produk = barang;
     D.kategori = Array.from(new Set(barang.map(function (b) { return b.kategori; }).filter(Boolean)));
     D.kasir = [kpgBuatPenggunaLokal()];
-    D.transaksi = [];
-    D.nomor = 0;
+    D.transaksi = transaksiLokal;
+    D.nomor = nomorLokal;
     D.toko = D.toko || dataKosong().toko;
     D.toko.nama = 'Kasir Gravion';
     D.toko.namaDariTema = false;
-    try { localStorage.removeItem(KUNCI); } catch (e) {}
     simpan();
     try { sessionStorage.removeItem('kasir-sesi'); } catch (e) {}
   }
