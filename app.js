@@ -83,6 +83,7 @@
     if (!Array.isArray(D.kategori)) D.kategori = [];
     if (!Array.isArray(D.transaksi)) D.transaksi = [];
     if (!Array.isArray(D.kasir) || !D.kasir.length) D.kasir = dataKosong().kasir;
+    if (!Array.isArray(D.offlineUsers)) D.offlineUsers = [];
     if (typeof D.nomor !== 'number') D.nomor = D.transaksi.length;
   }
 
@@ -307,33 +308,166 @@
     $('#aplikasi').hidden = true; $('#layarMasuk').hidden = false;
     $('#masukToko').textContent = D.toko.nama;
     var mi = $('#masukIlus'); if (mi) mi.innerHTML = D.produk.slice(0, 6).map(function (p, n) { return '<span class="thumb" data-nada="' + nadaDari(p.kategori + p.nama) + '" style="--i:' + n + '">' + ilustrasi(p) + '</span>'; }).join('');
-    kasirDipilih = D.kasir[0]; pinBuffer = '';
-    $('#daftarKasir').innerHTML = D.kasir.map(function (k) { return '<button data-id="' + k.id + '">' + esc(k.nama) + '</button>'; }).join('');
-    $$('#daftarKasir button').forEach(function (b) {
-      b.classList.toggle('aktif', b.dataset.id === kasirDipilih.id);
-      b.onclick = function () { kasirDipilih = D.kasir.find(function (k) { return k.id === b.dataset.id; }); pinBuffer = ''; tampilMasuk.titik(); $$('#daftarKasir button').forEach(function (x) { x.classList.toggle('aktif', x === b); }); };
+    kasirDipilih = D.offlineUsers[0] || null; pinBuffer = '';
+    $('#daftarKasir').innerHTML = D.offlineUsers.length ? D.offlineUsers.map(function (k) { return '<button data-id="' + esc(k.id_user) + '">' + esc(k.nama) + '</button>'; }).join('') : '<span class="redup kecil">Belum ada PIN offline. Login online terlebih dahulu.</span>';
+    $('#daftarKasir button').forEach(function (b) {
+      b.classList.toggle('aktif', !!kasirDipilih && b.dataset.id === kasirDipilih.id_user);
+      b.onclick = function () {
+        kasirDipilih = D.offlineUsers.find(function (k) { return k.id_user === b.dataset.id; });
+        pinBuffer = ''; tampilMasuk.titik();
+        $('#daftarKasir button').forEach(function (x) { x.classList.toggle('aktif', x === b); });
+      };
     });
+    $('#pinTitik').hidden = !kasirDipilih;
+    $('#padPin').hidden = !kasirDipilih;
     tampilMasuk.titik();
   }
-  tampilMasuk.titik = function () { $$('#pinTitik i').forEach(function (i, n) { i.classList.toggle('isi', n < pinBuffer.length); }); };
+  tampilMasuk.titik = function () { $('#pinTitik i').forEach(function (i, n) { i.classList.toggle('isi', n < pinBuffer.length); }); };
   function ketikPin(k) {
+    if (!kasirDipilih) return;
     if (k === 'hapus') pinBuffer = pinBuffer.slice(0, -1);
     else if (pinBuffer.length < 4) pinBuffer += k;
     tampilMasuk.titik();
     if (pinBuffer.length === 4) {
-      if (kasirDipilih && kasirDipilih.pin === pinBuffer) { masuk(kasirDipilih); }
-      else { var t = $('#pinTitik'); t.classList.add('salah'); setTimeout(function () { t.classList.remove('salah'); pinBuffer = ''; tampilMasuk.titik(); }, 350); }
+      var target = kasirDipilih, pin = pinBuffer;
+      KPGApi.verifyOfflinePin(pin, target.salt).then(function (hash) {
+        if (hash === target.pin_hash) {
+          masuk({ id: target.id_user, id_user: target.id_user, nama: target.nama, username: target.username,
+            peran: target.peran, id_cabang: target.id_cabang, offline: true }, null);
+        } else salahkanPin();
+      }).catch(function () { salahkanPin(); });
     }
   }
-  function masuk(k) {
-    pengguna = k; try { sessionStorage.setItem('kasir-sesi', k.id); } catch (e) {}
+  function salahkanPin() {
+    var t = $('#pinTitik'); t.classList.add('salah');
+    setTimeout(function () { t.classList.remove('salah'); pinBuffer = ''; tampilMasuk.titik(); }, 350);
+  }
+  function normalisasiUser(u) {
+    var role = String(u.peran || '').toUpperCase();
+    return { id: u.id_user, id_user: u.id_user, nama: u.nama, username: u.username,
+      peran: (role === 'OWNER' || role === 'ADMIN') ? 'admin' : 'kasir',
+      peran_server: role, id_cabang: u.id_cabang || '', offline: false };
+  }
+  function barangDariServer(x) {
+    return { id: String(x.id_barang), nama: String(x.nama_barang || ''), kategori: String(x.kategori || 'Umum'),
+      stok: Number(x.stok) || 0, foto: String(x.foto || ''), kode_barang: String(x.kode_barang || ''),
+      barcode: String(x.barcode || ''), satuan: String(x.satuan || 'pcs'),
+      harga_beli: Number(x.harga_beli) || 0,
+      varian: [{ nama: 'Reguler', harga: Number(x.harga_jual) || 0 }] };
+  }
+  function terapkanBootstrap(data, user) {
+    var rows = Array.isArray(data.barang) ? data.barang : [];
+    D.produk = rows.map(barangDariServer);
+    D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
+    D.supplier = Array.isArray(data.supplier) ? data.supplier : [];
+    D.cabang = Array.isArray(data.cabang) ? data.cabang : [];
+    D.id_cabang_aktif = data.id_cabang_aktif || user.id_cabang || '';
+    D.serverInitialized = true;
+    D.lastServerSync = data.server_time || new Date().toISOString();
+  }
+  function terapkanSyncPull(data, user) {
+    var cabang = data.cabang || user.id_cabang || D.id_cabang_aktif || '';
+    var stokMap = {};
+    (data.stok || []).forEach(function (s) { if (!cabang || s.id_cabang === cabang) stokMap[s.id_barang] = Number(s.stok) || 0; });
+    (data.barang || []).forEach(function (row) {
+      var mapped = barangDariServer(row), at = D.produk.findIndex(function (p) { return p.id === mapped.id; });
+      if (at >= 0) D.produk[at] = Object.assign({}, D.produk[at], mapped);
+      else D.produk.push(mapped);
+    });
+    D.produk.forEach(function (p) { if (Object.prototype.hasOwnProperty.call(stokMap, p.id)) p.stok = stokMap[p.id]; });
+    D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
+    if (Array.isArray(data.supplier)) D.supplier = data.supplier;
+    if (Array.isArray(data.cabang_list)) D.cabang = data.cabang_list;
+    D.id_cabang_aktif = cabang;
+    D.serverInitialized = true;
+    D.lastServerSync = data.server_time || new Date().toISOString();
+  }
+  function masuk(k, token) {
+    pengguna = k;
+    try {
+      if (token) {
+        sessionStorage.setItem('kpg-token', token);
+        sessionStorage.setItem('kpg-user', JSON.stringify(k));
+      } else {
+        sessionStorage.removeItem('kpg-token');
+        sessionStorage.removeItem('kpg-user');
+      }
+      sessionStorage.setItem('kasir-sesi', k.id_user || k.id);
+    } catch (e) {}
     $('#layarMasuk').hidden = true; $('#aplikasi').hidden = false;
     $('#namaKasir').textContent = k.nama + (k.peran === 'admin' ? ' · admin' : '');
     $('#namaTokoNav').textContent = D.toko.nama;
-    $$('[data-hal="produk"],[data-hal="atur"]').forEach(function (b) { b.hidden = !isAdmin(); });
+    $('[data-hal="produk"],[data-hal="atur"]').forEach(function (b) { b.hidden = !isAdmin(); });
     var tg = $('#tglHariIni'); if (tg) tg.textContent = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var av = $('#avatarKasir'); if (av) av.textContent = inisial(k.nama);
     buka('kasir');
+  }
+  function loginOnline(e) {
+    e.preventDefault();
+    var form = e.target, username = form.elements.username.value.trim(), password = form.elements.password.value;
+    var pin = form.elements.pinOffline.value.trim(), status = $('#loginOnlineStatus');
+    var existing = D.offlineUsers.find(function (x) { return x.username.toLowerCase() === username.toLowerCase(); });
+    if (!existing && !/^\d{4}$/.test(pin)) { status.textContent = 'Login pertama di perangkat ini memerlukan PIN offline 4 angka.'; return; }
+    if (pin && !/^\d{4}$/.test(pin)) { status.textContent = 'PIN offline harus tepat 4 angka.'; return; }
+    status.textContent = 'Memeriksa akun ke GAS...';
+    form.querySelector('button[type="submit"]').disabled = true;
+    KPGApi.login(username, password).then(function (auth) {
+      var user = normalisasiUser(auth.user);
+      var pull = D.serverInitialized
+        ? KPGApi.call('syncPull', { token: auth.token, since: D.lastServerSync || '', id_cabang: user.id_cabang })
+        : KPGApi.call('bootstrap', { token: auth.token });
+      return pull.then(function (data) {
+        if (D.serverInitialized) terapkanSyncPull(data, user); else terapkanBootstrap(data, user);
+        var credential = D.offlineUsers.find(function (x) { return x.id_user === user.id_user; });
+        var savePin = pin ? KPGApi.createOfflinePin(pin) : Promise.resolve(null);
+        return savePin.then(function (hashed) {
+          if (!credential && !hashed) throw new Error('PIN offline belum dibuat. Isi PIN 4 angka pada formulir login.');
+          if (credential) {
+            credential.nama = user.nama; credential.username = user.username; credential.peran = user.peran;
+            credential.id_cabang = user.id_cabang;
+          } else {
+            credential = { id_user: user.id_user, nama: user.nama, username: user.username, peran: user.peran, id_cabang: user.id_cabang };
+            D.offlineUsers.push(credential);
+          }
+          if (hashed) { credential.salt = hashed.salt; credential.pin_hash = hashed.pin_hash; }
+          return simpan().then(function () {
+            form.elements.password.value = ''; form.elements.pinOffline.value = '';
+            status.textContent = 'Login berhasil. Data lokal sudah diperbarui.';
+            masuk(user, auth.token);
+            syncPending();
+          });
+        });
+      });
+    }).catch(function (err) {
+      status.textContent = err.message || 'Login gagal. Periksa koneksi dan akun GAS.';
+    }).finally(function () { form.querySelector('button[type="submit"]').disabled = false; });
+  }
+  var sedangSync = false;
+  function syncPending() {
+    var token = null;
+    try { token = sessionStorage.getItem('kpg-token'); } catch (e) {}
+    if (!token || !navigator.onLine || sedangSync || !window.KPGStorage) return;
+    sedangSync = true;
+    KPGStorage.listOutbox(100).then(function (queue) {
+      return queue.reduce(function (chain, item) {
+        return chain.then(function () {
+          return KPGApi.call('syncPush', { token: token, transaksi: [item.payload] }).then(function (result) {
+            var ack = (result.hasil || []).find(function (x) { return x.client_id === item.client_id; });
+            if (!ack || !ack.ok) throw new Error(ack && ack.error || 'Transaksi belum diterima server.');
+            return KPGStorage.removeOutbox(item.client_id).then(function () {
+              var local = D.transaksi.find(function (t) { return t.client_id === item.client_id; });
+              if (local) local.sync_status = 'TERSINKRON';
+              return simpan();
+            });
+          }).catch(function (err) {
+            var local = D.transaksi.find(function (t) { return t.client_id === item.client_id; });
+            if (local) { local.sync_status = 'MENUNGGU'; local.sync_error = err.message; }
+            return simpan();
+          });
+        });
+      }, Promise.resolve());
+    }).catch(function (e) { console.warn('Antrean sinkronisasi:', e); })
+      .finally(function () { sedangSync = false; });
   }
 
   // ---------- Navigasi ----------
@@ -646,7 +780,9 @@
 
     $('#navBawah').innerHTML = $$('.samping .nav').map(function (b) { return b.outerHTML; }).join('');
     document.addEventListener('click', function (e) { var n = e.target.closest('.nav'); if (n) buka(n.dataset.hal); });
-    $('#btnKeluar').onclick = function () { pengguna = null; keranjang = []; try { sessionStorage.removeItem('kasir-sesi'); } catch (er) {} tampilMasuk(); };
+    $('#btnKeluar').onclick = function () { pengguna = null; keranjang = []; try { sessionStorage.removeItem('kasir-sesi'); sessionStorage.removeItem('kpg-token'); sessionStorage.removeItem('kpg-user'); } catch (er) {} tampilMasuk(); };
+    $('#formLoginOnline').onsubmit = loginOnline;
+    if (window.addEventListener) window.addEventListener('online', syncPending);
 
     $('#cariProduk').oninput = renderPOS;
     $('#chipKategori').onclick = function (e) { var c = e.target.closest('.chip'); if (c) { katAktif = c.dataset.k; renderPOS(); } };
@@ -723,13 +859,16 @@
     muat(state);
     ikatEvent();
     pasangLogo();
-    var sesi = null; try { sesi = sessionStorage.getItem('kasir-sesi'); } catch (e) {}
-    var k = sesi && D.kasir.find(function (x) { return x.id === sesi; });
-    if (k) masuk(k);
-    else if (/[?&]demo\b/.test(location.search)) {
-      masuk(D.kasir[0]);
-      [0, 0, 3, 8].forEach(function (i, n) { var p = D.produk[i]; if (p) tambahKeKeranjang(p, p.varian[n % p.varian.length]); });
-    } else tampilMasuk();
+    var token = null, cachedUser = null;
+    try { token = sessionStorage.getItem('kpg-token'); cachedUser = JSON.parse(sessionStorage.getItem('kpg-user') || 'null'); } catch (e) {}
+    if (token && cachedUser && navigator.onLine) {
+      KPGApi.call('syncPull', { token: token, since: D.lastServerSync || '', id_cabang: cachedUser.id_cabang })
+        .then(function (data) { terapkanSyncPull(data, cachedUser); return simpan(); })
+        .then(function () { masuk(cachedUser, token); syncPending(); })
+        .catch(function () { tampilMasuk(); });
+    } else {
+      tampilMasuk();
+    }
   }
 
   // Baca IndexedDB lebih dulu. Data localStorage lama dimigrasikan tanpa dihapus.
