@@ -478,7 +478,11 @@
             created_at: trx.waktu, attempts: 0 });
         });
       }, Promise.resolve());
+    var activeUserId = '';
+    try { var activeUser = JSON.parse(sessionStorage.getItem('kpg-user') || 'null'); activeUserId = activeUser && activeUser.id_user || ''; } catch (e) {}
     repair.then(function () { return KPGStorage.listOutbox(100); }).then(function (queue) {
+      // Jangan kirim transaksi kasir lain dengan token pengguna yang sedang aktif.
+      queue = queue.filter(function (item) { return !!activeUserId && item.owner_user_id === activeUserId; });
       return queue.reduce(function (chain, item) {
         return chain.then(function () {
           return KPGApi.call('syncPush', { token: token, transaksi: [item.payload] }).then(function (result) {
