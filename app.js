@@ -352,6 +352,7 @@
     return { id: String(x.id_barang), nama: String(x.nama_barang || ''), kategori: String(x.kategori || 'Umum'),
       stok: Number(x.stok) || 0, foto: String(x.foto || ''), kode_barang: String(x.kode_barang || ''),
       barcode: String(x.barcode || ''), satuan: String(x.satuan || 'pcs'),
+      id_cabang: String(x.id_cabang || ''), lokasi_rak: String(x.lokasi_rak || ''),
       harga_beli: Number(x.harga_beli) || 0,
       varian: [{ nama: 'Reguler', harga: Number(x.harga_jual) || 0 }] };
   }
@@ -542,13 +543,17 @@
     $('#chipKategori').innerHTML = kats.map(function (k) { var n = k === 'Semua' ? D.produk.length : D.produk.filter(function (p) { return p.kategori === k; }).length;
       return '<button class="chip' + (k === katAktif ? ' aktif' : '') + '" data-k="' + esc(k) + '" aria-pressed="' + (k === katAktif) + '">' + esc(k) + '<span class="chip-n">' + n + '</span></button>'; }).join('');
     var q = $('#cariProduk').value.trim().toLowerCase();
-    var list = D.produk.filter(function (p) { return (katAktif === 'Semua' || p.kategori === katAktif) && p.nama.toLowerCase().indexOf(q) > -1; });
+    var list = D.produk.filter(function (p) {
+      var target = [p.nama,p.id,p.kode_barang,p.barcode,p.id_cabang,p.lokasi_rak].join(' ').toLowerCase();
+      return (katAktif === 'Semua' || p.kategori === katAktif) && target.indexOf(q) > -1;
+    });
     $('#gridProduk').innerHTML = list.length ? list.map(function (p, n) {
       var sisa = p.stok - stokTerpakai(p.id), diKer = stokTerpakai(p.id);
       var min = Math.min.apply(null, p.varian.map(function (v) { return v.harga; }));
       return '<button class="kartu-produk' + (diKer ? ' dipilih' : '') + '" data-id="' + p.id + '" style="--i:' + Math.min(n, 14) + '"' + (sisa <= 0 ? ' disabled' : '') + ' aria-label="' + esc(p.nama) + ', ' + (p.varian.length > 1 ? 'mulai ' : '') + rp(min) + (sisa <= 0 ? ', stok habis' : '') + '">' +
         '<div class="thumb" data-nada="' + nadaDari(p.kategori + p.nama) + '">' + ilustrasi(p) + (diKer ? '<span class="di-ker">' + diKer + '</span>' : '') + (sisa <= 0 ? '<span class="habis">Habis</span>' : '') + '</div>' +
-        '<span class="kp-teks"><b>' + esc(p.nama) + '</b><span class="stok' + (sisa <= 5 ? ' tipis' : '') + '">' + (sisa <= 0 ? 'Stok habis' : (sisa <= 5 ? 'Sisa ' : 'Stok ') + sisa) + (p.varian.length > 1 ? ' · ' + p.varian.length + ' varian' : '') + '</span></span>' +
+        '<span class="kp-teks"><b>' + esc(p.nama) + '</b><span class="stok' + (sisa <= 5 ? ' tipis' : '') + '">' + (sisa <= 0 ? 'Stok habis' : (sisa <= 5 ? 'Sisa ' : 'Stok ') + sisa) + (p.varian.length > 1 ? ' · ' + p.varian.length + ' varian' : '') + '</span>' +
+        ((p.id_cabang || p.lokasi_rak) ? '<span class="stok">' + (p.id_cabang ? 'Cabang ' + esc(p.id_cabang) : '') + (p.id_cabang && p.lokasi_rak ? ' · ' : '') + (p.lokasi_rak ? 'Rak ' + esc(p.lokasi_rak) : '') + '</span>' : '') + '</span>' +
         '<span class="kp-bawah"><span class="harga">' + (p.varian.length > 1 ? '<small>mulai</small> ' : '') + rp(min) + '</span><span class="tambah" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></span></button>';
     }).join('') : '<div class="kosong"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><b>Produk tidak ditemukan</b><span>Coba kata lain atau pilih kategori "Semua".</span></div>';
     renderKeranjang();
