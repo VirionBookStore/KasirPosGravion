@@ -322,7 +322,7 @@
     $('#padPin').hidden = !kasirDipilih;
     tampilMasuk.titik();
   }
-  tampilMasuk.titik = function () { $('#pinTitik i').forEach(function (i, n) { i.classList.toggle('isi', n < pinBuffer.length); }); };
+  tampilMasuk.titik = function () { $$('#pinTitik i').forEach(function (i, n) { i.classList.toggle('isi', n < pinBuffer.length); }); };
   function ketikPin(k) {
     if (!kasirDipilih) return;
     if (k === 'hapus') pinBuffer = pinBuffer.slice(0, -1);
