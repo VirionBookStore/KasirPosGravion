@@ -16,7 +16,7 @@
         settled = true;
         cleanup();
         reject(new Error('GAS tidak merespons dalam 15 detik. Periksa deployment Web App dan koneksi internet.'));
-      }, 15000);
+      }, 45000);
       function cleanup() {
         clearTimeout(timer);
         try { delete window[cb]; } catch (e) { window[cb] = undefined; }
