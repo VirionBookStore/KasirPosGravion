@@ -653,7 +653,14 @@
       items: keranjang.map(function (i) { return Object.assign({}, i); }), subtotal: h.subtotal,
       diskon: h.diskon, total: h.total, metode: metode, bayar: bayar, kembali: bayar - h.total,
       client_id: clientId, id_cabang: pengguna.id_cabang || D.id_cabang_aktif || '', sync_status: 'MENUNGGU' };
-    trx.items.forEach(function (i) { var p = D.produk.find(function (x) { return x.id === i.pid; }); if (p) p.stok = Math.max(0, p.stok - i.qty); });
+    var stokLokalCabang = D.stokPerCabang && D.stokPerCabang[trx.id_cabang];
+    trx.items.forEach(function (i) {
+      var p = D.produk.find(function (x) { return x.id === i.pid; });
+      if (p) {
+        p.stok = Math.max(0, p.stok - i.qty);
+        if (stokLokalCabang) stokLokalCabang[p.id] = p.stok;
+      }
+    });
     D.transaksi.push(trx);
     var payload = {
       client_id: clientId, no_nota: trx.id, waktu: trx.waktu, id_cabang: trx.id_cabang,
