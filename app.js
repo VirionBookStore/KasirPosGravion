@@ -916,6 +916,11 @@
     muat(state);
     ikatEvent();
     pasangLogo();
+    if (/[?&]demo\b/.test(location.search)) {
+      masuk(D.kasir[0]);
+      [0, 0, 3, 8].forEach(function (i, n) { var p = D.produk[i]; if (p) tambahKeKeranjang(p, p.varian[n % p.varian.length]); });
+      return;
+    }
     var token = null, cachedUser = null;
     try { token = sessionStorage.getItem('kpg-token'); cachedUser = JSON.parse(sessionStorage.getItem('kpg-user') || 'null'); } catch (e) {}
     if (token && cachedUser && navigator.onLine) {
