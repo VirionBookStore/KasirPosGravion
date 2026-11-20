@@ -1,7 +1,7 @@
 /* Kasir POS Gravion — koneksi aman ke Google Apps Script. */
 (function () {
   'use strict';
-  var API_URL = 'https://script.google.com/macros/s/AKfycbxNBacathj9EZ5JM7QJF1Ruceq4dNgAmPDhkna32hAtiBcZJfkWJ-deN6iXx4J9kR3G/exec';
+  var API_URL = 'https://script.google.com/macros/s/AKfycbyBrSwEFYQvfCbyHhJBl8ko4c1VW-JowhThdkMyHbubeu2-YPrAT9Bcg9lUAdKQJQZl/exec';
   var sequence = 0;
 
   function jsonp(action, params) {
