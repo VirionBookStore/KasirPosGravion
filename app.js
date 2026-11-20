@@ -595,13 +595,30 @@
   function selesaikan(metode, bayar) {
     var h = hitung(), w = new Date();
     D.nomor = (D.nomor || 0) + 1;
-    var trx = { id: noTrx(w, D.nomor), waktu: w.toISOString(), kasir: pengguna.nama, items: keranjang.map(function (i) { return Object.assign({}, i); }), subtotal: h.subtotal, diskon: h.diskon, total: h.total, metode: metode, bayar: bayar, kembali: bayar - h.total };
+    var clientId = 'KPG-' + uid() + '-' + w.getTime();
+    var trx = { id: noTrx(w, D.nomor), waktu: w.toISOString(), kasir: pengguna.nama,
+      items: keranjang.map(function (i) { return Object.assign({}, i); }), subtotal: h.subtotal,
+      diskon: h.diskon, total: h.total, metode: metode, bayar: bayar, kembali: bayar - h.total,
+      client_id: clientId, id_cabang: pengguna.id_cabang || D.id_cabang_aktif || '', sync_status: 'MENUNGGU' };
     trx.items.forEach(function (i) { var p = D.produk.find(function (x) { return x.id === i.pid; }); if (p) p.stok = Math.max(0, p.stok - i.qty); });
-    D.transaksi.push(trx); simpan();
+    D.transaksi.push(trx);
+    var payload = {
+      client_id: clientId, no_nota: trx.id, waktu: trx.waktu, id_cabang: trx.id_cabang,
+      subtotal: trx.subtotal, diskon: trx.diskon, total: trx.total,
+      metode_bayar: String(metode || 'tunai').toUpperCase(), bayar: trx.bayar, kembali: trx.kembali,
+      items: trx.items.map(function (i) { return { id_barang: i.pid, nama_barang: i.nama, varian: i.varian, qty: i.qty, harga: i.harga, diskon_item: 0 }; })
+    };
+    var saved = simpan();
+    if (window.KPGStorage) {
+      Promise.all([saved, KPGStorage.enqueue({ client_id: clientId, payload: payload, created_at: w.toISOString(), attempts: 0 })])
+        .then(function () { syncPending(); })
+        .catch(function (err) { console.error('Gagal menyimpan antrean transaksi:', err); toast('Peringatan: antrean sinkronisasi belum tersimpan. Segera backup data.'); });
+    }
     keranjang = []; $('#inDiskon').value = 0; $('#panelKeranjang').classList.remove('buka');
-    dialog('<div class="sukses"><svg class="centang" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg><h3>Transaksi berhasil</h3><div class="total-besar"><small>' + { tunai: 'Tunai', qris: 'QRIS', transfer: 'Transfer' }[metode] + '</small>' + rp(trx.total) + '</div></div>' +
+    dialog('<div class="sukses"><svg class="centang" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg><h3>Transaksi tersimpan di perangkat</h3><div class="total-besar"><small>' + { tunai: 'Tunai', qris: 'QRIS', transfer: 'Transfer' }[metode] + '</small>' + rp(trx.total) + '</div></div>' +
       (metode === 'tunai' ? '<div class="kembali"><span>Kembalian</span><span>' + rp(trx.kembali) + '</span></div>' : '') +
       '<p class="redup kecil" style="text-align:center;margin:0">' + trx.id + '</p>' +
+      '<p class="redup kecil" style="text-align:center;margin:6px 0">Status sinkronisasi: menunggu konfirmasi server</p>' +
       '<div class="dlg-aksi"><button class="tombol" type="button" id="btnCetak">Cetak struk</button><button class="tombol utama" value="ok">Transaksi baru</button></div>', function (f) {
         $('#btnCetak', f).onclick = function () { cetak(trx); };
       });
