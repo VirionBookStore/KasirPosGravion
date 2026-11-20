@@ -1,5 +1,3 @@
-/* kredit-maliki: Template oleh Maliki Saputra (@malikisaputra) — https://malikisaputra.biz.id. Lisensi Nonkomersial Maliki Studio: wajib kredit, dilarang dijual (lihat LICENSE). */
-/* Kasir UMKM — Maliki Studio (malikisaputra.biz.id). Lisensi Nonkomersial Maliki Studio. */
 (function () {
   'use strict';
 
@@ -382,6 +380,7 @@
     });
     if (!D.stokPerCabang) D.stokPerCabang = {};
     D.stokPerCabang[cabang] = stokMap;
+    if (user && user.id_cabang) D.stokPerCabang[user.id_cabang] = stokMap; // <-- TAMBAHKAN BARIS IN
     (data.barang || []).forEach(function (row) {
       var mapped = barangDariServer(row), at = D.produk.findIndex(function (p) { return p.id === mapped.id; });
       if (at >= 0) D.produk[at] = Object.assign({}, D.produk[at], mapped);
