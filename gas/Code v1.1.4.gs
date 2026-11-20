@@ -226,8 +226,11 @@ function listBarang_(u,p) {
   const barang = getRows_('Barang').filter(x => x.status !== 'HAPUS');
   const stok = getRows_('Stok_Cabang').filter(x => !cabang || x.id_cabang === cabang);
   const map = {};
-  stok.forEach(x => map[x.id_barang] = {stok:Number(x.stok)||0,lokasi_rak:String(x.lokasi_rak||'')});
-  return {ok:true,data:barang.map(x => Object.assign({},x,{stok:(map[x.id_barang]||{}).stok||0,lokasi_rak:(map[x.id_barang]||{}).lokasi_rak||''}))};
+  stok.forEach(x => map[String(x.id_barang)] = {stok:Number(x.stok)||0,lokasi_rak:String(x.lokasi_rak||'')});
+  return {ok:true,data:barang.map(x => {
+    const s=map[String(x.id_barang)]||{};
+    return Object.assign({},x,{id_cabang:cabang,stok:s.stok===undefined?0:s.stok,lokasi_rak:s.lokasi_rak||''});
+  })};
 }
 /**
  * Upload foto barang ke Google Drive dan mengembalikan URL file.
@@ -271,8 +274,7 @@ function saveLokasiRak_(u,p) {
   const lokasi=String(p.lokasi_rak||'').trim();
   const rows=getRows_('Stok_Cabang');
   const row=rows.find(x=>x.id_cabang===cabang && x.id_barang===barang);
-  if(row) updateById_('Stok_Cabang','id_stok',row.id_stok,{lokasi_rak:lokasi,diubah_pada:now_()});
-  else append_('Stok_Cabang',{id_stok:id_('STK'),id_cabang:cabang,id_barang:barang,stok:0,diubah_pada:now_(),lokasi_rak:lokasi});
+  simpanBarisStokCabang_(cabang,barang,{lokasi_rak:lokasi});
   log_(u,'UBAH LOKASI RAK','Stok_Cabang',barang,'Cabang '+cabang+'; lokasi '+(lokasi||'(kosong)'));
   return {ok:true,id_cabang:cabang,id_barang:barang,lokasi_rak:lokasi};
 }
@@ -489,9 +491,36 @@ function getStok_(cabang,barang) {
 }
 function setStok_(cabang,barang,stok) {
   if(stok<0) throw new Error('Stok tidak boleh negatif.');
-  const rows=getRows_('Stok_Cabang'), x=rows.find(r=>r.id_cabang===cabang&&r.id_barang===barang);
-  if(x) updateById_('Stok_Cabang','id_stok',x.id_stok,{stok:stok,diubah_pada:now_()});
-  else append_('Stok_Cabang',{id_stok:id_('STK'),id_cabang:cabang,id_barang:barang,stok:stok,diubah_pada:now_(),lokasi_rak:''});
+  simpanBarisStokCabang_(cabang,barang,{stok:stok});
+}
+/**
+ * Update stok berdasarkan pasangan id_cabang + id_barang, bukan id_stok.
+ * Data lama dapat memiliki id_stok kosong; jangan sampai updateById_ dengan
+ * kunci kosong mengubah baris stok milik barang lain.
+ */
+function simpanBarisStokCabang_(cabang,barang,patch) {
+  const sh=db_().getSheetByName('Stok_Cabang');
+  const headers=CFG.SHEETS.Stok_Cabang;
+  const last=sh.getLastRow();
+  const values=last>=2?sh.getRange(2,1,last-1,headers.length).getValues():[];
+  const ix={}; headers.forEach((h,i)=>ix[h]=i);
+  let rowIndex=-1, row=null;
+  for(let i=0;i<values.length;i++){
+    if(String(values[i][ix.id_cabang]||'')===String(cabang) &&
+       String(values[i][ix.id_barang]||'')===String(barang)){
+      rowIndex=i+2; row=values[i].slice(); break;
+    }
+  }
+  if(!row){
+    const obj={id_stok:id_('STK'),id_cabang:cabang,id_barang:barang,stok:0,diubah_pada:now_(),lokasi_rak:''};
+    Object.keys(patch||{}).forEach(k=>obj[k]=patch[k]);
+    append_('Stok_Cabang',obj);
+    return;
+  }
+  if(!String(row[ix.id_stok]||'')) row[ix.id_stok]=id_('STK');
+  Object.keys(patch||{}).forEach(k=>{if(ix[k]!==undefined) row[ix[k]]=patch[k];});
+  row[ix.diubah_pada]=now_();
+  sh.getRange(rowIndex,1,1,headers.length).setValues([row.slice(0,headers.length)]);
 }
 function log_(u,aksi,modul,ref,ket) {
   append_('Log_Aktivitas',{id_log:id_('LOG'),waktu:now_(),id_user:u.id_user,nama_user:u.nama,id_cabang:u.id_cabang,aksi:aksi,modul:modul,referensi:ref,keterangan:ket});
