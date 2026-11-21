@@ -552,7 +552,7 @@
     $$('.hal').forEach(function (s) { s.classList.toggle('aktif', s.id === 'hal-' + hal); });
     try { $('main').scrollTop = 0; } catch (e) {}
     $$('.nav').forEach(function (b) { b.classList.toggle('aktif', b.dataset.hal === hal); });
-    ({ kasir: renderPOS, produk: function () { muatKatalogServer().catch(function (e) { toast('Katalog server gagal dimuat: ' + e.message); }); }, riwayat: renderRiwayat, laporan: renderLaporan, atur: renderAtur })[hal]();
+    ({ kasir: renderPOS, produk: function () { muatKatalogServer().catch(tampilkanErrorKatalog); }, riwayat: renderRiwayat, laporan: renderLaporan, atur: renderAtur })[hal]();
   }
 
   // ---------- POS ----------
@@ -736,6 +736,17 @@
   function tokenAktif() {
     try { return sessionStorage.getItem('kpg-token') || ''; } catch (e) { return ''; }
   }
+  function tampilkanErrorKatalog(err) {
+    var pesan = err && err.message ? err.message : String(err || 'Kesalahan tidak diketahui.');
+    $('#tabelProduk').innerHTML = '<tbody><tr><td colspan="7" class="kosong"><b>Katalog gagal dimuat.</b><div style="margin:8px 0">' + esc(pesan) + '</div><button type="button" class="tombol utama" id="btnUlangiKatalog">Coba lagi</button></td></tr></tbody>';
+    var ulang = $('#btnUlangiKatalog');
+    if (ulang) ulang.onclick = function () {
+      ulang.disabled = true;
+      ulang.textContent = 'Memuat...';
+      muatKatalogServer().catch(tampilkanErrorKatalog);
+    };
+    toast('Katalog gagal dimuat: ' + pesan);
+  }
   function muatKatalogServer() {
     var token = tokenAktif();
     if (!token) return Promise.reject(new Error('Sesi online tidak ditemukan. Login online kembali.'));
@@ -755,7 +766,7 @@
         sel.style.margin = '0 0 12px';
         sel.setAttribute('aria-label', 'Pilih cabang katalog');
         head.parentNode.insertBefore(sel, head);
-        sel.onchange = function () { cabangKatalogAktif = sel.value; muatKatalogServer().catch(function (e) { toast(e.message); }); };
+        sel.onchange = function () { cabangKatalogAktif = sel.value; muatKatalogServer().catch(tampilkanErrorKatalog); };
       }
       var sel = $('#pilihCabangKatalog');
       sel.innerHTML = cabang.map(function (x) { return '<option value="' + esc(x.id_cabang) + '">' + esc(x.nama_cabang || x.id_cabang) + '</option>'; }).join('');
