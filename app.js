@@ -541,7 +541,7 @@
   function buka(hal) {
     if (hal === 'produk' && !isOwner()) { toast('Menu Produk hanya dapat diakses OWNER.'); return; }
     if (hal === 'atur' && !isAdmin()) { toast('Menu Pengaturan hanya dapat diakses ADMIN/OWNER.'); return; }
-    $('.hal').forEach(function (s) { s.classList.toggle('aktif', s.id === 'hal-' + hal); });
+    $$('.hal').forEach(function (s) { s.classList.toggle('aktif', s.id === 'hal-' + hal); });
     try { $('main').scrollTop = 0; } catch (e) {}
     $$('.nav').forEach(function (b) { b.classList.toggle('aktif', b.dataset.hal === hal); });
     ({ kasir: renderPOS, produk: renderKelola, riwayat: renderRiwayat, laporan: renderLaporan, atur: renderAtur })[hal]();
