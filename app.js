@@ -300,7 +300,8 @@
 
   // ---------- Sesi kasir ----------
   var pengguna = null, pinBuffer = '', kasirDipilih = null;
-  function isAdmin() { return pengguna && pengguna.peran === 'admin'; }
+  function isAdmin() { return !!pengguna && (pengguna.peran === 'admin' || pengguna.peran === 'owner'); }
+  function isOwner() { return !!pengguna && pengguna.peran === 'owner'; }
 
   function tampilMasuk() {
     $('#aplikasi').hidden = true; $('#layarMasuk').hidden = false;
@@ -343,7 +344,7 @@
   function normalisasiUser(u) {
     var role = String(u.peran || '').toUpperCase();
     return { id: u.id_user, id_user: u.id_user, nama: u.nama, username: u.username,
-      peran: (role === 'OWNER' || role === 'ADMIN') ? 'admin' : 'kasir',
+      peran: role === 'OWNER' ? 'owner' : (role === 'ADMIN' ? 'admin' : 'kasir'),
       peran_server: role, id_cabang: u.id_cabang || '', offline: false };
   }
   function barangDariServer(x) {
@@ -434,9 +435,10 @@
       sessionStorage.setItem('kasir-sesi', k.id_user || k.id);
     } catch (e) {}
     $('#layarMasuk').hidden = true; $('#aplikasi').hidden = false;
-    $('#namaKasir').textContent = k.nama + (k.peran === 'admin' ? ' · admin' : '');
+    $('#namaKasir').textContent = k.nama + (k.peran === 'owner' ? ' · owner' : (k.peran === 'admin' ? ' · admin' : ''));
     $('#namaTokoNav').textContent = D.toko.nama;
-    $$('[data-hal="produk"],[data-hal="atur"]').forEach(function (b) { b.hidden = !isAdmin(); });
+    $('[data-hal="produk"]').forEach(function (b) { b.hidden = k.peran !== 'owner'; });
+    $('[data-hal="atur"]').forEach(function (b) { b.hidden = !(k.peran === 'owner' || k.peran === 'admin'); });
     var tg = $('#tglHariIni'); if (tg) tg.textContent = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var av = $('#avatarKasir'); if (av) av.textContent = inisial(k.nama);
     buka('kasir');
@@ -537,7 +539,9 @@
 
   // ---------- Navigasi ----------
   function buka(hal) {
-    $$('.hal').forEach(function (s) { s.classList.toggle('aktif', s.id === 'hal-' + hal); });
+    if (hal === 'produk' && !isOwner()) { toast('Menu Produk hanya dapat diakses OWNER.'); return; }
+    if (hal === 'atur' && !isAdmin()) { toast('Menu Pengaturan hanya dapat diakses ADMIN/OWNER.'); return; }
+    $('.hal').forEach(function (s) { s.classList.toggle('aktif', s.id === 'hal-' + hal); });
     try { $('main').scrollTop = 0; } catch (e) {}
     $$('.nav').forEach(function (b) { b.classList.toggle('aktif', b.dataset.hal === hal); });
     ({ kasir: renderPOS, produk: renderKelola, riwayat: renderRiwayat, laporan: renderLaporan, atur: renderAtur })[hal]();
