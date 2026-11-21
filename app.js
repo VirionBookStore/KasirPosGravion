@@ -437,8 +437,8 @@
     $('#layarMasuk').hidden = true; $('#aplikasi').hidden = false;
     $('#namaKasir').textContent = k.nama + (k.peran === 'owner' ? ' · owner' : (k.peran === 'admin' ? ' · admin' : ''));
     $('#namaTokoNav').textContent = D.toko.nama;
-    $('[data-hal="produk"]').forEach(function (b) { b.hidden = k.peran !== 'owner'; });
-    $('[data-hal="atur"]').forEach(function (b) { b.hidden = !(k.peran === 'owner' || k.peran === 'admin'); });
+    document.querySelectorAll('[data-hal="produk"]').forEach(function (b) { b.hidden = k.peran !== 'owner'; });
+    document.querySelectorAll('[data-hal="atur"]').forEach(function (b) { b.hidden = !(k.peran === 'owner' || k.peran === 'admin'); });
     var tg = $('#tglHariIni'); if (tg) tg.textContent = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var av = $('#avatarKasir'); if (av) av.textContent = inisial(k.nama);
     buka('kasir');
