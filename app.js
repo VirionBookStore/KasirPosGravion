@@ -789,7 +789,7 @@
       '<button class="tombol" value="batal" formnovalidate>Batal</button><button class="tombol utama" type="button" id="fSimpan">Simpan</button></div>', function (f) {
         if (!baru) $('#fHapus', f).onclick = function () {
           if (!confirm('Tandai produk ' + p.nama + ' sebagai terhapus dari master?')) return;
-          KPGApi.call('saveBarang', { token: tokenAktif(), id_barang: p.id, nama_barang: p.nama, kategori: p.kategori, barcode: p.barcode || '', kode_barang: p.kode_barang || '', satuan: p.satuan || 'pcs', harga_beli: p.harga_beli || 0, harga_jual: harga, status: 'HAPUS' })
+          KPGApi.call('saveBarang', { token: tokenAktif(), id_barang: p.id, nama_barang: p.nama, kategori: p.kategori, barcode: p.barcode || '', kode_barang: p.kode_barang || '', satuan: p.satuan || 'pcs', harga_beli: p.harga_beli || 0, harga_jual: harga, foto: p.foto || '', status: 'HAPUS' })
             .then(function () { tutupDialog(); return muatKatalogServer(); }).then(function () { toast('Produk dihapus dari master server.'); })
             .catch(function (e) { toast('Gagal menghapus: ' + e.message); });
         };
@@ -800,7 +800,7 @@
             kategori: $('#fKat', f).value.trim() || 'Umum', barcode: $('#fBarcode', f).value.trim(),
             kode_barang: $('#fKode', f).value.trim(), satuan: $('#fSatuan', f).value.trim() || 'pcs',
             harga_beli: Math.max(0, Number($('#fBeli', f).value) || 0),
-            harga_jual: Math.max(0, Number($('#fJual', f).value) || 0), status: 'AKTIF' };
+            harga_jual: Math.max(0, Number($('#fJual', f).value) || 0), foto: p.foto || '', status: 'AKTIF' };
           $('#fSimpan', f).disabled = true;
           KPGApi.call('saveBarang', payload).then(function () {
             tutupDialog();
