@@ -371,17 +371,20 @@
   }
   function terapkanSyncPull(data, user) {
     var cabang = data.cabang || user.id_cabang || D.id_cabang_aktif || '';
-    var stokMap = {}, lokasiMap = {};
+    // syncPull dapat mengirim delta: jangan kosongkan stok yang tidak ikut berubah.
+    var stokLama = (D.stokPerCabang && D.stokPerCabang[cabang]) || {};
+    var stokMap = Object.assign({}, stokLama), lokasiMap = {};
     (data.stok || []).forEach(function (s) {
       if (!cabang || String(s.id_cabang || '') === String(cabang)) {
         var idBarang = String(s.id_barang || '');
+        if (!idBarang) return;
         stokMap[idBarang] = Number(s.stok) || 0;
         lokasiMap[idBarang] = String(s.lokasi_rak || '');
       }
     });
     if (!D.stokPerCabang) D.stokPerCabang = {};
     D.stokPerCabang[cabang] = stokMap;
-    if (user && user.id_cabang) D.stokPerCabang[user.id_cabang] = stokMap; // <-- TAMBAHKAN BARIS IN
+    if (user && user.id_cabang) D.stokPerCabang[user.id_cabang] = stokMap;
     (data.barang || []).forEach(function (row) {
       var mapped = barangDariServer(row), at = D.produk.findIndex(function (p) { return p.id === mapped.id; });
       if (at >= 0) D.produk[at] = Object.assign({}, D.produk[at], mapped);
@@ -390,9 +393,14 @@
     var deleted = Array.isArray(data.barang_hapus) ? data.barang_hapus.map(String) : [];
     if (deleted.length) D.produk = D.produk.filter(function (p) { return deleted.indexOf(String(p.id)) < 0; });
     D.produk.forEach(function (p) {
-      p.stok = Object.prototype.hasOwnProperty.call(stokMap, String(p.id)) ? stokMap[String(p.id)] : 0;
+      if (Object.prototype.hasOwnProperty.call(stokMap, String(p.id))) {
+        p.stok = Number(stokMap[String(p.id)]) || 0;
+      } else {
+        p.stok = Number(p.stok) || 0;
+      }
       p.id_cabang = cabang;
-      p.lokasi_rak = Object.prototype.hasOwnProperty.call(lokasiMap, String(p.id)) ? lokasiMap[String(p.id)] : (p.lokasi_rak || '');
+      if (Object.prototype.hasOwnProperty.call(lokasiMap, String(p.id))) p.lokasi_rak = lokasiMap[String(p.id)];
+      else p.lokasi_rak = p.lokasi_rak || '';
     });
     D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
     if (Array.isArray(data.supplier)) D.supplier = data.supplier;
