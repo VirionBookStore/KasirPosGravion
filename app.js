@@ -332,7 +332,7 @@
       KPGApi.verifyOfflinePin(pin, target.salt).then(function (hash) {
         if (hash === target.pin_hash) {
           masuk({ id: target.id_user, id_user: target.id_user, nama: target.nama, username: target.username,
-            peran: target.peran, id_cabang: target.id_cabang, offline: true }, null);
+            peran: normalisasiRoleUser(target), id_cabang: normalisasiIdCabang(target), offline: true }, null);
         } else salahkanPin();
       }).catch(function () { salahkanPin(); });
     }
@@ -341,11 +341,31 @@
     var t = $('#pinTitik'); t.classList.add('salah');
     setTimeout(function () { t.classList.remove('salah'); pinBuffer = ''; tampilMasuk.titik(); }, 350);
   }
+  function normalisasiRoleUser(u) {
+    u = u || {};
+    var raw = u.peran;
+    if (raw == null || raw === '') raw = u.role;
+    if (raw == null || raw === '') raw = u.ROLE;
+    var role = String(raw == null ? '' : raw).trim().toUpperCase()
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[\\s_-]+/g, '');
+    if (['OWNER', 'PEMILIK', 'SUPERADMIN', 'SUPERUSER'].indexOf(role) >= 0) return 'owner';
+    if (['ADMIN', 'ADMINISTRATOR'].indexOf(role) >= 0) return 'admin';
+    return 'kasir';
+  }
+  function normalisasiIdCabang(u) {
+    u = u || {};
+    var id = u.id_cabang;
+    if (id == null || id === '') id = u.cabang_id;
+    if (id == null || id === '') id = u.idCabang;
+    return String(id == null ? '' : id).trim();
+  }
   function normalisasiUser(u) {
-    var role = String(u.peran || '').toUpperCase();
-    return { id: u.id_user, id_user: u.id_user, nama: u.nama, username: u.username,
-      peran: role === 'OWNER' ? 'owner' : (role === 'ADMIN' ? 'admin' : 'kasir'),
-      peran_server: role, id_cabang: u.id_cabang || '', offline: false };
+    u = u || {};
+    var role = normalisasiRoleUser(u);
+    var roleServer = String(u.peran != null ? u.peran : (u.role != null ? u.role : (u.ROLE || ''))).trim();
+    return { id: u.id_user || u.id || '', id_user: u.id_user || u.id || '',
+      nama: u.nama || u.name || '', username: u.username || '',
+      peran: role, peran_server: roleServer, id_cabang: normalisasiIdCabang(u), offline: false };
   }
   function barangDariServer(x) {
     return { id: String(x.id_barang), nama: String(x.nama_barang || ''), kategori: String(x.kategori || 'Umum'),
@@ -370,7 +390,7 @@
     D.lastServerSync = data.server_time || new Date().toISOString();
   }
   function terapkanSyncPull(data, user) {
-    var cabang = data.cabang || user.id_cabang || D.id_cabang_aktif || '';
+    var cabang = String(data.cabang || (user && user.id_cabang) || D.id_cabang_aktif || '').trim();
     // syncPull dapat mengirim delta: jangan kosongkan stok yang tidak ikut berubah.
     var stokLama = (D.stokPerCabang && D.stokPerCabang[cabang]) || {};
     var stokMap = Object.assign({}, stokLama), lokasiMap = {};
@@ -384,7 +404,7 @@
     });
     if (!D.stokPerCabang) D.stokPerCabang = {};
     D.stokPerCabang[cabang] = stokMap;
-    if (user && user.id_cabang) D.stokPerCabang[user.id_cabang] = stokMap;
+    if (user && user.id_cabang && String(user.id_cabang).trim() === String(cabang).trim()) D.stokPerCabang[user.id_cabang] = stokMap;
     (data.barang || []).forEach(function (row) {
       var mapped = barangDariServer(row), at = D.produk.findIndex(function (p) { return p.id === mapped.id; });
       if (at >= 0) D.produk[at] = Object.assign({}, D.produk[at], mapped);
@@ -418,7 +438,11 @@
         return;
       }
       D.produk.forEach(function (p) {
-        p.stok = Object.prototype.hasOwnProperty.call(stokCabang, p.id) ? Number(stokCabang[p.id]) || 0 : 0;
+        // Data cabang yang belum tersimpan bukan berarti stok habis.
+        if (Object.prototype.hasOwnProperty.call(stokCabang, p.id)) {
+          var stokOffline = Number(stokCabang[p.id]);
+          if (Number.isFinite(stokOffline) && stokOffline >= 0) p.stok = stokOffline;
+        }
       });
       D.id_cabang_aktif = cabangOffline;
     }
