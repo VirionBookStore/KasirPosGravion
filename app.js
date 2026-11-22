@@ -720,9 +720,9 @@
           '</div><div class="dlg-aksi"><button type="button" class="tombol" id="batalPilihCabang">Batal</button></div>';
         dialog(html, function (f) {
           $('#batalPilihCabang', f).onclick = function () { tutupDialog(); reject(new Error('Pemilihan cabang dibatalkan.')); };
-          $('[data-cabang]', f).forEach(function (b) {
+          $$('[data-cabang]', f).forEach(function (b) {
             b.onclick = function () {
-              $('[data-cabang]', f).forEach(function (x) { x.disabled = true; });
+              $$('[data-cabang]', f).forEach(function (x) { x.disabled = true; });
               var id = b.dataset.cabang;
               muatBarangUntukCabang(id).then(function () { tutupDialog(); resolve(id); })
                 .catch(function (e) { tutupDialog(); reject(e); });
