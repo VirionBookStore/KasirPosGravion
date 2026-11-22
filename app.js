@@ -381,8 +381,8 @@
     D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
     D.supplier = Array.isArray(data.supplier) ? data.supplier : [];
     D.cabang = Array.isArray(data.cabang) ? data.cabang : [];
-    D.id_cabang_aktif = data.id_cabang_aktif || user.id_cabang || '';
-    if (!user.id_cabang) user.id_cabang = D.id_cabang_aktif;
+    D.id_cabang_aktif = user.peran === 'owner' ? '' : (data.id_cabang_aktif || user.id_cabang || '');
+    if (!user.id_cabang && user.peran !== 'owner') user.id_cabang = D.id_cabang_aktif;
     if (!D.stokPerCabang) D.stokPerCabang = {};
     D.stokPerCabang[D.id_cabang_aktif] = {};
     D.produk.forEach(function (p) { D.stokPerCabang[D.id_cabang_aktif][p.id] = p.stok; });
@@ -390,21 +390,29 @@
     D.lastServerSync = data.server_time || new Date().toISOString();
   }
   function terapkanSyncPull(data, user) {
-    var cabang = String(data.cabang || (user && user.id_cabang) || D.id_cabang_aktif || '').trim();
-    // syncPull dapat mengirim delta: jangan kosongkan stok yang tidak ikut berubah.
-    var stokLama = (D.stokPerCabang && D.stokPerCabang[cabang]) || {};
-    var stokMap = Object.assign({}, stokLama), lokasiMap = {};
-    (data.stok || []).forEach(function (s) {
-      if (!cabang || String(s.id_cabang || '') === String(cabang)) {
+    var ownerSemuaCabang = !!(user && user.peran === 'owner' && !String(data.cabang || '').trim());
+    var cabang = ownerSemuaCabang ? '' : String(data.cabang || (user && user.id_cabang) || D.id_cabang_aktif || '').trim();
+    if (!D.stokPerCabang) D.stokPerCabang = {};
+    var stokMap = {}, lokasiMap = {};
+    if (ownerSemuaCabang) {
+      (data.stok || []).forEach(function (s) {
+        var idCabang = String(s.id_cabang || '').trim(), idBarang = String(s.id_barang || '');
+        if (!idCabang || !idBarang) return;
+        if (!D.stokPerCabang[idCabang]) D.stokPerCabang[idCabang] = {};
+        D.stokPerCabang[idCabang][idBarang] = Number(s.stok) || 0;
+      });
+    } else {
+      var stokLama = D.stokPerCabang[cabang] || {};
+      stokMap = Object.assign({}, stokLama);
+      (data.stok || []).forEach(function (s) {
+        if (String(s.id_cabang || '') !== cabang) return;
         var idBarang = String(s.id_barang || '');
         if (!idBarang) return;
         stokMap[idBarang] = Number(s.stok) || 0;
         lokasiMap[idBarang] = String(s.lokasi_rak || '');
-      }
-    });
-    if (!D.stokPerCabang) D.stokPerCabang = {};
-    D.stokPerCabang[cabang] = stokMap;
-    if (user && user.id_cabang && String(user.id_cabang).trim() === String(cabang).trim()) D.stokPerCabang[user.id_cabang] = stokMap;
+      });
+      D.stokPerCabang[cabang] = stokMap;
+    }
     (data.barang || []).forEach(function (row) {
       var mapped = barangDariServer(row), at = D.produk.findIndex(function (p) { return p.id === mapped.id; });
       if (at >= 0) D.produk[at] = Object.assign({}, D.produk[at], mapped);
@@ -413,19 +421,21 @@
     var deleted = Array.isArray(data.barang_hapus) ? data.barang_hapus.map(String) : [];
     if (deleted.length) D.produk = D.produk.filter(function (p) { return deleted.indexOf(String(p.id)) < 0; });
     D.produk.forEach(function (p) {
-      if (Object.prototype.hasOwnProperty.call(stokMap, String(p.id))) {
-        p.stok = Number(stokMap[String(p.id)]) || 0;
+      if (ownerSemuaCabang) {
+        p.stok = Object.keys(D.stokPerCabang).reduce(function (sum, id) {
+          return sum + (Object.prototype.hasOwnProperty.call(D.stokPerCabang[id], String(p.id)) ? Number(D.stokPerCabang[id][String(p.id)]) || 0 : 0);
+        }, 0);
+        p.id_cabang = '';
       } else {
-        p.stok = Number(p.stok) || 0;
+        if (Object.prototype.hasOwnProperty.call(stokMap, String(p.id))) p.stok = Number(stokMap[String(p.id)]) || 0;
+        p.id_cabang = cabang;
+        if (Object.prototype.hasOwnProperty.call(lokasiMap, String(p.id))) p.lokasi_rak = lokasiMap[String(p.id)];
       }
-      p.id_cabang = cabang;
-      if (Object.prototype.hasOwnProperty.call(lokasiMap, String(p.id))) p.lokasi_rak = lokasiMap[String(p.id)];
-      else p.lokasi_rak = p.lokasi_rak || '';
     });
     D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
     if (Array.isArray(data.supplier)) D.supplier = data.supplier;
     if (Array.isArray(data.cabang_list)) D.cabang = data.cabang_list;
-    D.id_cabang_aktif = cabang;
+    D.id_cabang_aktif = ownerSemuaCabang ? '' : cabang;
     D.serverInitialized = true;
     D.lastServerSync = data.server_time || new Date().toISOString();
   }
@@ -488,7 +498,7 @@
     KPGApi.login(username, password).then(function (auth) {
       var user = normalisasiUser(auth.user);
       var pull = D.serverInitialized
-        ? KPGApi.call('syncPull', { token: auth.token, since: D.lastServerSync || '', id_cabang: user.id_cabang })
+        ? KPGApi.call('syncPull', { token: auth.token, since: D.lastServerSync || '', id_cabang: user.peran === 'owner' ? '' : user.id_cabang })
         : KPGApi.call('bootstrap', { token: auth.token });
       return pull.then(function (data) {
         if (D.serverInitialized) terapkanSyncPull(data, user); else terapkanBootstrap(data, user);
@@ -645,7 +655,72 @@
   }
   function tutupDialog() { var d = $('#dlg'); if (d.open) d.close(); }
 
+  var cabangTransaksiAktif = '';
+  var daftarCabangTransaksi = [];
+  function muatBarangUntukCabang(idCabang) {
+    var token = tokenAktif();
+    return KPGApi.call('listBarang', { token: token, id_cabang: idCabang }).then(function (r) {
+      if (!Array.isArray(r.data)) throw new Error('Respons stok cabang tidak valid.');
+      D.produk = r.data.map(barangDariServer);
+      D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
+      D.id_cabang_aktif = idCabang;
+      cabangTransaksiAktif = idCabang;
+      renderPOS();
+      return D.produk;
+    });
+  }
+  function muatSemuaBarangOwner() {
+    var token = tokenAktif();
+    return KPGApi.call('listBarang', { token: token, id_cabang: '' }).then(function (r) {
+      var gabung = {};
+      (Array.isArray(r.data) ? r.data : []).forEach(function (x) {
+        var id = String(x.id_barang);
+        if (!gabung[id]) gabung[id] = Object.assign({}, x, { stok: 0, id_cabang: '', lokasi_rak: '' });
+        gabung[id].stok += Number(x.stok) || 0;
+      });
+      D.produk = Object.keys(gabung).map(function (id) { return barangDariServer(gabung[id]); });
+      D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
+      D.id_cabang_aktif = '';
+      renderPOS();
+      return D.produk;
+    });
+  }
+  function mintaCabangOwner() {
+    if (cabangTransaksiAktif) return Promise.resolve(cabangTransaksiAktif);
+    var token = tokenAktif();
+    if (!token) return Promise.reject(new Error('Login online diperlukan untuk memilih cabang transaksi.'));
+    return KPGApi.call('listCabangStok', { token: token }).then(function (r) {
+      daftarCabangTransaksi = Array.isArray(r.data) ? r.data : [];
+      if (!daftarCabangTransaksi.length) throw new Error('Belum ada cabang yang memiliki data stok.');
+      return new Promise(function (resolve, reject) {
+        var html = '<h3>Pilih cabang transaksi</h3><p class="redup kecil">Stok dan transaksi akan menggunakan cabang yang dipilih.</p><div class="pilih-varian">' +
+          daftarCabangTransaksi.map(function (c) { return '<button type="button" data-cabang="' + esc(c.id_cabang) + '"><span>' + esc(c.nama_cabang) + '</span><small>' + esc(c.id_cabang) + '</small></button>'; }).join('') +
+          '</div><div class="dlg-aksi"><button type="button" class="tombol" id="batalPilihCabang">Batal</button></div>';
+        dialog(html, function (f) {
+          $('#batalPilihCabang', f).onclick = function () { tutupDialog(); reject(new Error('Pemilihan cabang dibatalkan.')); };
+          $('[data-cabang]', f).forEach(function (b) {
+            b.onclick = function () {
+              $('[data-cabang]', f).forEach(function (x) { x.disabled = true; });
+              var id = b.dataset.cabang;
+              muatBarangUntukCabang(id).then(function () { tutupDialog(); resolve(id); })
+                .catch(function (e) { tutupDialog(); reject(e); });
+            };
+          });
+        });
+      });
+    });
+  }
   function pilihVarian(p) {
+    if (pengguna && pengguna.peran === 'owner' && !cabangTransaksiAktif) {
+      return mintaCabangOwner().then(function () {
+        var terbaru = D.produk.find(function (x) { return x.id === p.id; });
+        if (!terbaru || terbaru.stok <= 0) { toast('Stok barang ini kosong di cabang yang dipilih.'); return; }
+        return bukaPilihanVarian(terbaru);
+      }).catch(function (e) { if (e.message !== 'Pemilihan cabang dibatalkan.') toast(e.message); });
+    }
+    return bukaPilihanVarian(p);
+  }
+  function bukaPilihanVarian(p) {
     if (p.varian.length === 1) return tambahKeKeranjang(p, p.varian[0]);
     dialog('<h3>' + esc(p.nama) + '</h3><div class="pilih-varian">' + p.varian.map(function (v, i) {
       return '<button type="button" data-i="' + i + '"><span>' + esc(v.nama) + '</span><span>' + rp(v.harga) + '</span></button>';
@@ -701,12 +776,13 @@
 
   function selesaikan(metode, bayar) {
     var h = hitung(), w = new Date();
+    if (pengguna && pengguna.peran === 'owner' && !cabangTransaksiAktif) return toast('Pilih cabang sebelum menyelesaikan transaksi.');
     D.nomor = (D.nomor || 0) + 1;
     var clientId = 'KPG-' + uid() + '-' + w.getTime();
     var trx = { id: noTrx(w, D.nomor), waktu: w.toISOString(), kasir: pengguna.nama, id_user: pengguna.id_user || '',
       items: keranjang.map(function (i) { return Object.assign({}, i); }), subtotal: h.subtotal,
       diskon: h.diskon, total: h.total, metode: metode, bayar: bayar, kembali: bayar - h.total,
-      client_id: clientId, id_cabang: pengguna.id_cabang || D.id_cabang_aktif || '', sync_status: 'MENUNGGU' };
+      client_id: clientId, id_cabang: (pengguna.peran === 'owner' ? cabangTransaksiAktif : (pengguna.id_cabang || D.id_cabang_aktif || '')), sync_status: 'MENUNGGU' };
     var stokLokalCabang = D.stokPerCabang && D.stokPerCabang[trx.id_cabang];
     trx.items.forEach(function (i) {
       var p = D.produk.find(function (x) { return x.id === i.pid; });
@@ -736,7 +812,10 @@
       '<div class="dlg-aksi"><button class="tombol" type="button" id="btnCetak">Cetak struk</button><button class="tombol utama" value="ok">Transaksi baru</button></div>', function (f) {
         $('#btnCetak', f).onclick = function () { cetak(trx); };
       });
-    renderPOS();
+    if (pengguna && pengguna.peran === 'owner') {
+      cabangTransaksiAktif = '';
+      muatSemuaBarangOwner().catch(function (e) { toast('Gagal memuat ulang stok semua cabang: ' + e.message); });
+    } else renderPOS();
   }
 
   // ---------- Struk 58mm ----------
@@ -1077,7 +1156,7 @@
     var token = null, cachedUser = null;
     try { token = sessionStorage.getItem('kpg-token'); cachedUser = JSON.parse(sessionStorage.getItem('kpg-user') || 'null'); } catch (e) {}
     if (token && cachedUser && navigator.onLine) {
-      KPGApi.call('syncPull', { token: token, since: D.lastServerSync || '', id_cabang: cachedUser.id_cabang })
+      KPGApi.call('syncPull', { token: token, since: D.lastServerSync || '', id_cabang: cachedUser.peran === 'owner' ? '' : cachedUser.id_cabang })
         .then(function (data) { terapkanSyncPull(data, cachedUser); return simpan(); })
         .then(function () { masuk(cachedUser, token); syncPending(); })
         .catch(function () { tampilMasuk(); });
