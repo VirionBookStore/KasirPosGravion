@@ -459,22 +459,22 @@
     pengguna = k;
     try {
       if (token) {
-        sessionStorage.setItem('kpg-token', token);
-        sessionStorage.setItem('kpg-user', JSON.stringify(k));
+        localStorage.setItem('kpg-token', token);
+        localStorage.setItem('kpg-user', JSON.stringify(k));
       } else if (k.offline) {
         // Pertahankan token online hanya bila milik akun yang sama, agar antrean
         // offline dapat dikirim saat internet kembali tanpa memakai akun lain.
         var cached = null;
-        try { cached = JSON.parse(sessionStorage.getItem('kpg-user') || 'null'); } catch (e) {}
+        try { cached = JSON.parse(localStorage.getItem('kpg-user') || 'null'); } catch (e) {}
         if (!cached || cached.id_user !== k.id_user) {
-          sessionStorage.removeItem('kpg-token');
-          sessionStorage.removeItem('kpg-user');
+          localStorage.removeItem('kpg-token');
+          localStorage.removeItem('kpg-user');
         }
       } else {
-        sessionStorage.removeItem('kpg-token');
-        sessionStorage.removeItem('kpg-user');
+        localStorage.removeItem('kpg-token');
+        localStorage.removeItem('kpg-user');
       }
-      sessionStorage.setItem('kasir-sesi', k.id_user || k.id);
+      localStorage.setItem('kasir-sesi', k.id_user || k.id);
     } catch (e) {}
     $('#layarMasuk').hidden = true; $('#aplikasi').hidden = false;
     $('#namaKasir').textContent = k.nama + (k.peran === 'owner' ? ' · owner' : (k.peran === 'admin' ? ' · admin' : ''));
@@ -541,7 +541,7 @@
   }
   function syncPending() {
     var token = null;
-    try { token = sessionStorage.getItem('kpg-token'); } catch (e) {}
+    try { token = localStorage.getItem('kpg-token'); } catch (e) {}
     if (!token || !navigator.onLine || sedangSync || !window.KPGStorage) return;
     sedangSync = true;
     // Pulihkan antrean dari transaksi lokal yang belum mendapat ACK server.
@@ -554,7 +554,7 @@
         });
       }, Promise.resolve());
     var activeUserId = '';
-    try { var activeUser = JSON.parse(sessionStorage.getItem('kpg-user') || 'null'); activeUserId = activeUser && activeUser.id_user || ''; } catch (e) {}
+    try { var activeUser = JSON.parse(localStorage.getItem('kpg-user') || 'null'); activeUserId = activeUser && activeUser.id_user || ''; } catch (e) {}
     repair.then(function () { return KPGStorage.listOutbox(100); }).then(function (queue) {
       // Jangan kirim transaksi kasir lain dengan token pengguna yang sedang aktif.
       queue = queue.filter(function (item) { return !!activeUserId && item.owner_user_id === activeUserId; });
@@ -862,7 +862,7 @@
   var sedangMuatKatalog = false;
   var filterKatalogOwner = 'SEMUA';
   function tokenAktif() {
-    try { return sessionStorage.getItem('kpg-token') || ''; } catch (e) { return ''; }
+    try { return localStorage.getItem('kpg-token') || ''; } catch (e) { return ''; }
   }
   function tampilkanErrorKatalog(err) {
     var pesan = err && err.message ? err.message : String(err || 'Kesalahan tidak diketahui.');
@@ -1119,10 +1119,10 @@
     $('#navBawah').innerHTML = $$('.samping .nav').map(function (b) { return b.outerHTML; }).join('');
     document.addEventListener('click', function (e) { var n = e.target.closest('.nav'); if (n) buka(n.dataset.hal); });
     $('#btnKeluar').onclick = function () {
-      var token = null; try { token = sessionStorage.getItem('kpg-token'); } catch (er) {}
+      var token = null; try { token = localStorage.getItem('kpg-token'); } catch (er) {}
       if (token) KPGApi.call('logout', { token: token }).catch(function () {});
       pengguna = null; keranjang = [];
-      try { sessionStorage.removeItem('kasir-sesi'); sessionStorage.removeItem('kpg-token'); sessionStorage.removeItem('kpg-user'); } catch (er) {}
+      try { localStorage.removeItem('kasir-sesi'); localStorage.removeItem('kpg-token'); localStorage.removeItem('kpg-user'); } catch (er) {}
       tampilMasuk();
     };
     $('#formLoginOnline').onsubmit = loginOnline;
@@ -1206,6 +1206,16 @@
 
   // ---------- Mulai ----------
   function jalankanAplikasi(state) {
+    // Migrasi sesi login lama ke penyimpanan persisten agar tidak perlu login
+    // ulang saat pengguna berpindah aplikasi atau membuka kembali browser.
+    try {
+      ['kpg-token', 'kpg-user', 'kasir-sesi'].forEach(function (key) {
+        if (!localStorage.getItem(key)) {
+          var lama = localStorage.getItem(key);
+          if (lama) localStorage.setItem(key, lama);
+        }
+      });
+    } catch (e) {}
     if (!state && /[?&]demo\b/.test(location.search)) state = dataContoh();
     muat(state);
     ikatEvent();
@@ -1216,7 +1226,7 @@
       return;
     }
     var token = null, cachedUser = null;
-    try { token = sessionStorage.getItem('kpg-token'); cachedUser = JSON.parse(sessionStorage.getItem('kpg-user') || 'null'); } catch (e) {}
+    try { token = localStorage.getItem('kpg-token'); cachedUser = JSON.parse(localStorage.getItem('kpg-user') || 'null'); } catch (e) {}
     if (token && cachedUser && navigator.onLine) {
       KPGApi.call('syncPull', { token: token, since: D.lastServerSync || '', id_cabang: cachedUser.peran === 'owner' ? '' : cachedUser.id_cabang })
         .then(function (data) { terapkanSyncPull(data, cachedUser); return simpan(); })
