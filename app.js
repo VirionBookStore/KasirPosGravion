@@ -347,7 +347,7 @@
     if (raw == null || raw === '') raw = u.role;
     if (raw == null || raw === '') raw = u.ROLE;
     var role = String(raw == null ? '' : raw).trim().toUpperCase()
-      .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[\\s_-]+/g, '');
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s_-]+/g, '');
     if (['OWNER', 'PEMILIK', 'SUPERADMIN', 'SUPERUSER'].indexOf(role) >= 0) return 'owner';
     if (['ADMIN', 'ADMINISTRATOR'].indexOf(role) >= 0) return 'admin';
     return 'kasir';
