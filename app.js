@@ -1211,7 +1211,7 @@
     try {
       ['kpg-token', 'kpg-user', 'kasir-sesi'].forEach(function (key) {
         if (!localStorage.getItem(key)) {
-          var lama = localStorage.getItem(key);
+          var lama = window.sessionStorage.getItem(key);
           if (lama) localStorage.setItem(key, lama);
         }
       });
