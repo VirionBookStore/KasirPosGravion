@@ -804,7 +804,9 @@
     var trx = { id: noTrx(w, D.nomor), waktu: w.toISOString(), kasir: pengguna.nama, id_user: pengguna.id_user || '',
       items: keranjang.map(function (i) { return Object.assign({}, i); }), subtotal: h.subtotal,
       diskon: h.diskon, total: h.total, metode: metode, bayar: bayar, kembali: bayar - h.total,
-      client_id: clientId, id_cabang: (pengguna.peran === 'owner' ? cabangTransaksiAktif : (pengguna.id_cabang || D.id_cabang_aktif || '')), sync_status: 'MENUNGGU' };
+      client_id: clientId, id_cabang: (pengguna.peran === 'owner' ? cabangTransaksiAktif : (pengguna.id_cabang || D.id_cabang_aktif || '')),
+      nama_cabang: (daftarCabangTransaksi.find(function (c) { return String(c.id_cabang) === String(pengguna.peran === 'owner' ? cabangTransaksiAktif : (pengguna.id_cabang || D.id_cabang_aktif || '')); }) || {}).nama_cabang || pengguna.nama_cabang || '',
+      sync_status: 'MENUNGGU' };
     var stokLokalCabang = D.stokPerCabang && D.stokPerCabang[trx.id_cabang];
     trx.items.forEach(function (i) {
       var p = D.produk.find(function (x) { return x.id === i.pid; });
@@ -1022,7 +1024,8 @@
   function renderRiwayat() {
     var list = trxFilter();
     $('#daftarTrx').innerHTML = list.length ? list.slice(0, 200).map(function (x) {
-      return '<div class="trx"><div><b>' + x.id + '</b><div class="meta">' + fmtWaktu(x.waktu) + ' · ' + esc(x.kasir) + ' · ' + x.metode.toUpperCase() + ' · ' + x.items.reduce(function (s, i) { return s + i.qty; }, 0) + ' item</div>' +
+      var cabangLabel = String(x.nama_cabang || '').trim() || String(x.id_cabang || '').trim() || 'Cabang tidak tercatat';
+      return '<div class="trx"><div><b>' + x.id + '</b><div class="meta">' + fmtWaktu(x.waktu) + ' · ' + esc(x.kasir) + ' · ' + x.metode.toUpperCase() + ' · ' + x.items.reduce(function (s, i) { return s + i.qty; }, 0) + ' item</div><div class="meta">Cabang: ' + esc(cabangLabel) + '</div>' +
         '<div class="meta">' + x.items.map(function (i) { return esc(i.nama) + ' ×' + i.qty; }).join(', ') + '</div></div><div class="tot">' + rp(x.total) + '</div>' +
         '<div class="aksi"><button class="tombol" data-cetak="' + x.id + '">Cetak</button>' + (isAdmin() ? '<button class="tombol bahaya" data-hapus="' + x.id + '">Batalkan</button>' : '') + '</div></div>';
     }).join('') : '<p class="kosong">Belum ada transaksi.</p>';
