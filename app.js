@@ -371,7 +371,7 @@
     return { id: String(x.id_barang), nama: String(x.nama_barang || ''), kategori: String(x.kategori || 'Umum'),
       stok: Number(x.stok) || 0, foto: String(x.foto || ''), kode_barang: String(x.kode_barang || ''),
       barcode: String(x.barcode || ''), satuan: String(x.satuan || 'pcs'),
-      id_cabang: String(x.id_cabang || ''), lokasi_rak: String(x.lokasi_rak || ''),
+      id_cabang: String(x.id_cabang || ''), nama_cabang: String(x.nama_cabang || x.id_cabang || ''), lokasi_rak: String(x.lokasi_rak || ''),
       harga_beli: Number(x.harga_beli) || 0,
       varian: [{ nama: 'Reguler', harga: Number(x.harga_jual) || 0 }] };
   }
@@ -586,11 +586,21 @@
     $$('.hal').forEach(function (s) { s.classList.toggle('aktif', s.id === 'hal-' + hal); });
     try { $('main').scrollTop = 0; } catch (e) {}
     $$('.nav').forEach(function (b) { b.classList.toggle('aktif', b.dataset.hal === hal); });
-    ({ kasir: renderPOS, produk: function () { muatKatalogServer().catch(tampilkanErrorKatalog); }, riwayat: renderRiwayat, laporan: renderLaporan, atur: renderAtur })[hal]();
+    ({ kasir: function () {
+        if (pengguna && pengguna.peran === 'owner') {
+          if (produkKasirCache) { D.produk = produkKasirCache.map(function (p) { return Object.assign({}, p); }); renderPOS(); }
+          muatSemuaBarangOwner().then(function () { produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); }); })
+            .catch(function (e) { if (!produkKasirCache) toast('Gagal memuat stok seluruh cabang: ' + e.message); });
+        } else renderPOS();
+      }, produk: function () {
+        if (pengguna && pengguna.peran === 'owner') produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
+        muatKatalogServer().catch(tampilkanErrorKatalog);
+      }, riwayat: renderRiwayat, laporan: renderLaporan, atur: renderAtur })[hal]();
   }
 
   // ---------- POS ----------
   var keranjang = [], katAktif = 'Semua';
+  var produkKasirCache = null;
   var jumlahProdukTampil = 80;
   function stokTerpakai(pid) { return keranjang.filter(function (i) { return i.pid === pid; }).reduce(function (s, i) { return s + i.qty; }, 0); }
 
@@ -610,7 +620,7 @@
       return '<button class="kartu-produk' + (diKer ? ' dipilih' : '') + '" data-id="' + p.id + '" style="--i:' + Math.min(n, 14) + '"' + (sisa <= 0 ? ' disabled' : '') + ' aria-label="' + esc(p.nama) + ', ' + (p.varian.length > 1 ? 'mulai ' : '') + rp(min) + (sisa <= 0 ? ', stok habis' : '') + '">' +
         '<div class="thumb" data-nada="' + nadaDari(p.kategori + p.nama) + '">' + ilustrasi(p) + (diKer ? '<span class="di-ker">' + diKer + '</span>' : '') + (sisa <= 0 ? '<span class="habis">Habis</span>' : '') + '</div>' +
         '<span class="kp-teks"><b>' + esc(p.nama) + '</b><span class="stok' + (sisa <= 5 ? ' tipis' : '') + '">' + (sisa <= 0 ? 'Stok habis' : (sisa <= 5 ? 'Sisa ' : 'Stok ') + sisa) + (p.varian.length > 1 ? ' · ' + p.varian.length + ' varian' : '') + '</span>' +
-        ((p.id_cabang || p.lokasi_rak) ? '<span class="stok">' + (p.id_cabang ? 'Cabang ' + esc(p.id_cabang) : '') + (p.id_cabang && p.lokasi_rak ? ' · ' : '') + (p.lokasi_rak ? 'Rak ' + esc(p.lokasi_rak) : '') + '</span>' : '') + '</span>' +
+        ((p.cabang_stok_label || p.nama_cabang || p.id_cabang || p.lokasi_rak) ? '<span class="stok">' + (p.cabang_stok_label ? esc(p.cabang_stok_label) : (p.nama_cabang || p.id_cabang ? 'Cabang ' + esc(p.nama_cabang || p.id_cabang) : '')) + (p.lokasi_rak ? ' · Rak ' + esc(p.lokasi_rak) : '') + '</span>' : '') + '</span>' +
         '<span class="kp-bawah"><span class="harga">' + (p.varian.length > 1 ? '<small>mulai</small> ' : '') + rp(min) + '</span><span class="tambah" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></span></button>';
     }).join('') + (list.length > tampil.length ? '<button type="button" data-muat-lagi class="tombol" style="grid-column:1/-1;width:100%;margin:8px 0 18px">Tampilkan 80 produk berikutnya (' + (list.length - tampil.length) + ' tersisa)</button>' : '') : '<div class="kosong"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><b>Produk tidak ditemukan</b><span>Coba kata lain atau pilih kategori "Semua".</span></div>';
     renderKeranjang();
@@ -672,13 +682,25 @@
   function muatSemuaBarangOwner() {
     var token = tokenAktif();
     return KPGApi.call('listBarang', { token: token, id_cabang: '' }).then(function (r) {
+      if (!Array.isArray(r.data)) throw new Error('Data katalog seluruh cabang tidak valid.');
       var gabung = {};
-      (Array.isArray(r.data) ? r.data : []).forEach(function (x) {
+      r.data.forEach(function (x) {
         var id = String(x.id_barang);
-        if (!gabung[id]) gabung[id] = Object.assign({}, x, { stok: 0, id_cabang: '', lokasi_rak: '' });
-        gabung[id].stok += Number(x.stok) || 0;
+        if (!gabung[id]) gabung[id] = Object.assign({}, x, { stok: 0, id_cabang: '', nama_cabang: '', lokasi_rak: '', _cabang: [] });
+        var stok = Number(x.stok) || 0;
+        gabung[id].stok += stok;
+        if (stok > 0) gabung[id]._cabang.push(String(x.nama_cabang || x.id_cabang || ''));
       });
-      D.produk = Object.keys(gabung).map(function (id) { return barangDariServer(gabung[id]); });
+      D.produk = Object.keys(gabung).map(function (id) {
+        var x = gabung[id];
+        x.cabang_stok_label = x._cabang.filter(Boolean).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(', ');
+        delete x._cabang;
+        return barangDariServer(x);
+      }).map(function (p, i) {
+        var src = gabung[p.id];
+        p.cabang_stok_label = src ? src.cabang_stok_label : '';
+        return p;
+      });
       D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
       D.id_cabang_aktif = '';
       renderPOS();
