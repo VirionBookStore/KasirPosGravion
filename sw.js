@@ -2,7 +2,7 @@
  * Cache hanya aset same-origin. Request GAS/JSONP tidak pernah disimpan,
  * karena URL callback berubah pada setiap permintaan.
  */
-var CACHE = 'kasir-umkm-v9';
+var CACHE = 'kasir-umkm-v10';
 var BERKAS = [
   './', './index.html', './style.css', './app.js', './storage.js',
   './api.js', './manifest.webmanifest', './ikon.svg', './qris.svg',
@@ -40,7 +40,7 @@ self.addEventListener('fetch', function (e) {
 
   var path = url.pathname;
   var isShell = req.mode === 'navigate' ||
-    /\\.(?:html|js|css|webmanifest)$/i.test(path);
+    /\.(?:html|js|css|webmanifest)$/i.test(path);
 
   if (isShell) {
     // Utamakan versi terbaru dari GitHub Pages; cache hanya sebagai fallback offline.
