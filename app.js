@@ -872,39 +872,63 @@
     };
     toast('Katalog gagal dimuat: ' + pesan);
   }
-  function muatKatalogServer() {
+  var cacheKatalogPerCabang = Object.create(null);
+  var sedangMuatKatalog = false;
+  function siapkanPilihCabangKatalog(cabang) {
+    var head = $('#tabelProduk').parentNode;
+    var sel = $('#pilihCabangKatalog');
+    if (!sel) {
+      sel = document.createElement('select');
+      sel.id = 'pilihCabangKatalog';
+      sel.className = 'cari-lebar';
+      sel.style.margin = '0 0 12px';
+      sel.setAttribute('aria-label', 'Pilih cabang katalog');
+      head.parentNode.insertBefore(sel, head);
+      sel.onchange = function () {
+        cabangKatalogAktif = sel.value;
+        muatKatalogServer(true).catch(tampilkanErrorKatalog);
+      };
+    }
+    sel.innerHTML = cabang.map(function (x) {
+      return '<option value="' + esc(x.id_cabang) + '">' + esc(x.nama_cabang || x.id_cabang) + '</option>';
+    }).join('');
+    sel.value = cabangKatalogAktif;
+  }
+  function muatKatalogServer(paksa) {
     var token = tokenAktif();
     if (!token) return Promise.reject(new Error('Sesi online tidak ditemukan. Login online kembali.'));
-    $('#tabelProduk').innerHTML = '<tbody><tr><td class="kosong">Memuat katalog dari server...</td></tr></tbody>';
-    return KPGApi.call('listCabang', { token: token }).then(function (r) {
-      var cabang = Array.isArray(r.data) ? r.data : [];
-      if (!cabang.length) throw new Error('Belum ada cabang aktif di database.');
-      if (!cabangKatalogAktif || !cabang.some(function (x) { return String(x.id_cabang) === String(cabangKatalogAktif); })) {
-        cabangKatalogAktif = String(D.id_cabang_aktif || cabang[0].id_cabang);
-      }
-      var head = $('#tabelProduk').parentNode;
-      var old = $('#pilihCabangKatalog');
-      if (!old) {
-        var sel = document.createElement('select');
-        sel.id = 'pilihCabangKatalog';
-        sel.className = 'cari-lebar';
-        sel.style.margin = '0 0 12px';
-        sel.setAttribute('aria-label', 'Pilih cabang katalog');
-        head.parentNode.insertBefore(sel, head);
-        sel.onchange = function () { cabangKatalogAktif = sel.value; muatKatalogServer().catch(tampilkanErrorKatalog); };
-      }
-      var sel = $('#pilihCabangKatalog');
-      sel.innerHTML = cabang.map(function (x) { return '<option value="' + esc(x.id_cabang) + '">' + esc(x.nama_cabang || x.id_cabang) + '</option>'; }).join('');
-      sel.value = cabangKatalogAktif;
+    if (!paksa && cabangKatalogAktif && cacheKatalogPerCabang[cabangKatalogAktif]) {
+      dataKatalogServer = cacheKatalogPerCabang[cabangKatalogAktif].slice();
+      D.produk = dataKatalogServer.map(barangDariServer);
+      D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
+      D.id_cabang_aktif = cabangKatalogAktif;
+      renderKelola();
+    } else if (!dataKatalogServer.length) {
+      $('#tabelProduk').innerHTML = '<tbody><tr><td class="kosong">Memuat katalog dari server...</td></tr></tbody>';
+    }
+    if (sedangMuatKatalog) return Promise.resolve(dataKatalogServer);
+    sedangMuatKatalog = true;
+    var pilihCabang = cabangKatalogAktif && $('#pilihCabangKatalog')
+      ? Promise.resolve()
+      : KPGApi.call('listCabang', { token: token }).then(function (r) {
+          var cabang = Array.isArray(r.data) ? r.data : [];
+          if (!cabang.length) throw new Error('Belum ada cabang aktif di database.');
+          if (!cabangKatalogAktif || !cabang.some(function (x) { return String(x.id_cabang) === String(cabangKatalogAktif); })) {
+            cabangKatalogAktif = String(D.id_cabang_aktif || cabang[0].id_cabang);
+          }
+          siapkanPilihCabangKatalog(cabang);
+        });
+    return pilihCabang.then(function () {
       return KPGApi.call('listBarang', { token: token, id_cabang: cabangKatalogAktif });
     }).then(function (r) {
       dataKatalogServer = Array.isArray(r.data) ? r.data : [];
+      cacheKatalogPerCabang[cabangKatalogAktif] = dataKatalogServer.slice();
       D.produk = dataKatalogServer.map(barangDariServer);
       D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
       D.id_cabang_aktif = cabangKatalogAktif;
       renderKelola();
       return dataKatalogServer;
-    });
+    }).finally(function () { sedangMuatKatalog = false; });
   }
   function renderKelola() {
     var q = $('#cariKelola').value.trim().toLowerCase();
