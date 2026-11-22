@@ -575,7 +575,18 @@
           });
         });
       }, Promise.resolve());
-    }).catch(function (e) { console.warn('Antrean sinkronisasi:', e); })
+    }).then(function () {
+      // Setelah server mengonfirmasi antrean, ambil stok terbaru dari cabang server.
+      // Jangan memuat ulang sebelum syncPush selesai karena hasilnya bisa masih stok lama.
+      if (!navigator.onLine) return;
+      var userAktif = null;
+      try { userAktif = JSON.parse(localStorage.getItem('kpg-user') || 'null'); } catch (e) {}
+      if (!userAktif) return;
+      if (String(userAktif.peran || '').toUpperCase() === 'OWNER') {
+        return muatSemuaBarangOwner();
+      }
+      if (userAktif.id_cabang) return muatBarangUntukCabang(userAktif.id_cabang);
+    }).catch(function (e) { console.warn('Antrean sinkronisasi / muat ulang stok:', e); })
       .finally(function () { sedangSync = false; });
   }
 
