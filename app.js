@@ -858,22 +858,19 @@
   // ---------- Kelola produk (server GAS, per cabang) ----------
   var cabangKatalogAktif = '';
   var dataKatalogServer = [];
+  var cacheKatalogPerCabang = Object.create(null);
+  var sedangMuatKatalog = false;
+  var filterKatalogOwner = 'SEMUA';
   function tokenAktif() {
     try { return sessionStorage.getItem('kpg-token') || ''; } catch (e) { return ''; }
   }
   function tampilkanErrorKatalog(err) {
     var pesan = err && err.message ? err.message : String(err || 'Kesalahan tidak diketahui.');
-    $('#tabelProduk').innerHTML = '<tbody><tr><td colspan="7" class="kosong"><b>Katalog gagal dimuat.</b><div style="margin:8px 0">' + esc(pesan) + '</div><button type="button" class="tombol utama" id="btnUlangiKatalog">Coba lagi</button></td></tr></tbody>';
+    $('#tabelProduk').innerHTML = '<tbody><tr><td colspan="8" class="kosong"><b>Katalog gagal dimuat.</b><div style="margin:8px 0">' + esc(pesan) + '</div><button type="button" class="tombol utama" id="btnUlangiKatalog">Coba lagi</button></td></tr></tbody>';
     var ulang = $('#btnUlangiKatalog');
-    if (ulang) ulang.onclick = function () {
-      ulang.disabled = true;
-      ulang.textContent = 'Memuat...';
-      muatKatalogServer().catch(tampilkanErrorKatalog);
-    };
+    if (ulang) ulang.onclick = function () { ulang.disabled = true; ulang.textContent = 'Memuat...'; muatKatalogServer(true).catch(tampilkanErrorKatalog); };
     toast('Katalog gagal dimuat: ' + pesan);
   }
-  var cacheKatalogPerCabang = Object.create(null);
-  var sedangMuatKatalog = false;
   function siapkanPilihCabangKatalog(cabang) {
     var head = $('#tabelProduk').parentNode;
     var sel = $('#pilihCabangKatalog');
@@ -882,63 +879,73 @@
       sel.id = 'pilihCabangKatalog';
       sel.className = 'cari-lebar';
       sel.style.margin = '0 0 12px';
-      sel.setAttribute('aria-label', 'Pilih cabang katalog');
+      sel.setAttribute('aria-label', 'Filter cabang produk');
       head.parentNode.insertBefore(sel, head);
       sel.onchange = function () {
-        cabangKatalogAktif = sel.value;
+        filterKatalogOwner = sel.value || 'SEMUA';
+        renderKelola();
         muatKatalogServer(true).catch(tampilkanErrorKatalog);
       };
     }
-    sel.innerHTML = cabang.map(function (x) {
-      return '<option value="' + esc(x.id_cabang) + '">' + esc(x.nama_cabang || x.id_cabang) + '</option>';
+    var opts = '<option value="SEMUA">Semua cabang</option>' + cabang.map(function (x) {
+      return '<option value="' + esc(x.id_cabang) + '">' + esc(x.nama_cabang || x.id_cabang) + ' (' + esc(x.id_cabang) + ')</option>';
     }).join('');
-    sel.value = cabangKatalogAktif;
+    sel.innerHTML = opts;
+    sel.value = filterKatalogOwner;
   }
   function muatKatalogServer(paksa) {
     var token = tokenAktif();
     if (!token) return Promise.reject(new Error('Sesi online tidak ditemukan. Login online kembali.'));
-    if (!paksa && cabangKatalogAktif && cacheKatalogPerCabang[cabangKatalogAktif]) {
-      dataKatalogServer = cacheKatalogPerCabang[cabangKatalogAktif].slice();
-      D.produk = dataKatalogServer.map(barangDariServer);
-      D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
-      D.id_cabang_aktif = cabangKatalogAktif;
+    // Gunakan data yang sudah ada di memori dari bootstrap/transaksi; jangan kosongkan tabel.
+    if (dataKatalogServer.length) renderKelola();
+    else if (D.produk && D.produk.length) {
+      dataKatalogServer = D.produk.map(function (p) { return {
+        id_barang:p.id, nama_barang:p.nama, kategori:p.kategori, barcode:p.barcode, kode_barang:p.kode_barang,
+        satuan:p.satuan, harga_beli:p.harga_beli, harga_jual:p.varian && p.varian[0] ? p.varian[0].harga : 0,
+        stok:p.stok, id_cabang:p.id_cabang || '', nama_cabang:p.nama_cabang || p.id_cabang || '', lokasi_rak:p.lokasi_rak || ''
+      }; });
       renderKelola();
-    } else if (!dataKatalogServer.length) {
-      $('#tabelProduk').innerHTML = '<tbody><tr><td class="kosong">Memuat katalog dari server...</td></tr></tbody>';
+    } else {
+      $('#tabelProduk').innerHTML = '<tbody><tr><td class="kosong">Mengambil data produk...</td></tr></tbody>';
     }
-    if (sedangMuatKatalog) return Promise.resolve(dataKatalogServer);
+    if (sedangMuatKatalog && !paksa) return Promise.resolve(dataKatalogServer);
     sedangMuatKatalog = true;
-    var pilihCabang = cabangKatalogAktif && $('#pilihCabangKatalog')
-      ? Promise.resolve()
-      : KPGApi.call('listCabang', { token: token }).then(function (r) {
-          var cabang = Array.isArray(r.data) ? r.data : [];
-          if (!cabang.length) throw new Error('Belum ada cabang aktif di database.');
-          if (!cabangKatalogAktif || !cabang.some(function (x) { return String(x.id_cabang) === String(cabangKatalogAktif); })) {
-            cabangKatalogAktif = String(D.id_cabang_aktif || cabang[0].id_cabang);
-          }
-          siapkanPilihCabangKatalog(cabang);
-        });
-    return pilihCabang.then(function () {
-      return KPGApi.call('listBarang', { token: token, id_cabang: cabangKatalogAktif });
-    }).then(function (r) {
-      dataKatalogServer = Array.isArray(r.data) ? r.data : [];
-      cacheKatalogPerCabang[cabangKatalogAktif] = dataKatalogServer.slice();
-      D.produk = dataKatalogServer.map(barangDariServer);
-      D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
-      D.id_cabang_aktif = cabangKatalogAktif;
-      renderKelola();
-      return dataKatalogServer;
+    var mintaCabang = KPGApi.call('listCabang', { token: token }).then(function (r) {
+      var cabang = Array.isArray(r.data) ? r.data : [];
+      if (!cabang.length) throw new Error('Belum ada cabang aktif di database.');
+      if (!pengguna || pengguna.peran !== 'owner') {
+        filterKatalogOwner = String(D.id_cabang_aktif || pengguna.id_cabang || (cabang[0] && cabang[0].id_cabang));
+      }
+      siapkanPilihCabangKatalog(cabang);
+      var id = (pengguna && pengguna.peran === 'owner' && filterKatalogOwner === 'SEMUA') ? '' : filterKatalogOwner;
+      return KPGApi.call('listBarang', { token: token, id_cabang: id }).then(function (hasil) {
+        if (!Array.isArray(hasil.data)) throw new Error('Data katalog dari server tidak valid.');
+        dataKatalogServer = hasil.data;
+        cacheKatalogPerCabang[filterKatalogOwner] = dataKatalogServer.slice();
+        // Jangan mengganti D.produk: itu adalah dataset Kasir OWNER (stok agregat lintas cabang).
+        renderKelola();
+        return dataKatalogServer;
+      });
     }).finally(function () { sedangMuatKatalog = false; });
+    return mintaCabang;
   }
   function renderKelola() {
     var q = $('#cariKelola').value.trim().toLowerCase();
-    var list = D.produk.filter(function (p) { return (p.nama + ' ' + p.id + ' ' + (p.barcode || '')).toLowerCase().indexOf(q) > -1; });
-    $('#tabelProduk').innerHTML = '<thead><tr><th>Produk</th><th>Kategori</th><th>Barcode</th><th>Harga</th><th>Stok</th><th>Rak</th><th></th></tr></thead><tbody>' +
+    var owner = !!(pengguna && pengguna.peran === 'owner');
+    var rows = Array.isArray(dataKatalogServer) ? dataKatalogServer : [];
+    if (owner && filterKatalogOwner !== 'SEMUA') rows = rows.filter(function (x) { return String(x.id_cabang || '') === String(filterKatalogOwner); });
+    var list = rows.filter(function (p) {
+      return [p.nama_barang || p.nama || '', p.id_barang || p.id || '', p.barcode || '', p.id_cabang || '', p.nama_cabang || ''].join(' ').toLowerCase().indexOf(q) > -1;
+    });
+    $('#tabelProduk').innerHTML = '<thead><tr><th>Produk</th><th>Kategori</th><th>Cabang</th><th>Barcode</th><th>Harga</th><th>Stok</th><th>Rak</th><th></th></tr></thead><tbody>' +
       (list.map(function (p) {
-        return '<tr><td><b>' + esc(p.nama) + '</b><div class="redup kecil">' + esc(p.id) + '</div></td><td>' + esc(p.kategori) + '</td><td>' + esc(p.barcode || '-') + '</td><td>' + rp(p.varian[0] ? p.varian[0].harga : 0) + '</td>' +
-          '<td><span class="lencana' + (p.stok <= 5 ? ' merah' : '') + '">' + p.stok + '</span></td><td>' + esc(p.lokasi_rak || '-') + '</td>' +
-          '<td style="text-align:right;white-space:nowrap"><button class="tautan" data-stok="' + esc(p.id) + '">Atur stok</button> <button class="tautan" data-edit="' + esc(p.id) + '">Ubah master</button></td></tr>';
-      }).join('') || '<tr><td colspan="7" class="kosong">Belum ada produk pada cabang ini.</td></tr>') + '</tbody>';
+        var id = String(p.id_barang || p.id || ''), nama = p.nama_barang || p.nama || '';
+        var cabang = String(p.id_cabang || (owner ? '' : cabangKatalogAktif));
+        var harga = Number(p.harga_jual || (p.varian && p.varian[0] ? p.varian[0].harga : 0)) || 0;
+        return '<tr><td><b>' + esc(nama) + '</b><div class="redup kecil">' + esc(id) + '</div></td><td>' + esc(p.kategori || 'Umum') + '</td><td>' + esc(p.nama_cabang || cabang || 'Semua cabang') + (cabang ? '<div class="redup kecil">' + esc(cabang) + '</div>' : '') + '</td><td>' + esc(p.barcode || '-') + '</td><td>' + rp(harga) + '</td>' +
+          '<td><span class="lencana' + ((Number(p.stok) || 0) <= 5 ? ' merah' : '') + '">' + (Number(p.stok) || 0) + '</span></td><td>' + esc(p.lokasi_rak || '-') + '</td>' +
+          '<td style="text-align:right;white-space:nowrap"><button class="tautan" data-stok="' + esc(id) + '" data-cabang="' + esc(cabang) + '">Atur stok</button> <button class="tautan" data-edit="' + esc(id) + '">Ubah master</button></td></tr>';
+      }).join('') || '<tr><td colspan="8" class="kosong">Belum ada produk pada filter cabang ini.</td></tr>') + '</tbody>';
   }
   function formProduk(p) {
     var baru = !p;
@@ -1143,8 +1150,15 @@
     $('#btnKategori').onclick = formKategori;
     $('#tabelProduk').onclick = function (e) {
       var ed = e.target.closest('[data-edit]'), st = e.target.closest('[data-stok]');
-      if (ed) formProduk(D.produk.find(function (p) { return p.id === ed.dataset.edit; }));
-      if (st) { var p = D.produk.find(function (x) { return x.id === st.dataset.stok; }); if (p) aturStokCabang(p); }
+      if (ed) {
+        var master = D.produk.find(function (p) { return p.id === ed.dataset.edit; });
+        if (master) formProduk(master);
+      }
+      if (st) {
+        var id = st.dataset.stok, idCabang = st.dataset.cabang;
+        var row = dataKatalogServer.find(function (x) { return String(x.id_barang || x.id || '') === id && String(x.id_cabang || '') === String(idCabang || ''); });
+        if (row) aturStokCabang(barangDariServer(row));
+      }
     };
 
     $('#filterTanggal').onchange = renderRiwayat;
