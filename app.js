@@ -986,14 +986,16 @@
       });
   }
   function aturStokCabang(p) {
-    var stok = prompt('Masukkan jumlah stok akhir untuk ' + p.nama + ' di cabang ' + cabangKatalogAktif + ':', String(p.stok));
+    var idCabangStok = String(p.id_cabang || cabangKatalogAktif || '');
+    if (!idCabangStok) return toast('Pilih cabang tertentu sebelum mengatur stok.');
+    var stok = prompt('Masukkan jumlah stok akhir untuk ' + p.nama + ' di cabang ' + idCabangStok + ':', String(p.stok));
     if (stok === null) return;
     var n = Number(stok);
     if (!Number.isInteger(n) || n < 0) return toast('Stok harus bilangan bulat nol atau lebih.');
     var rak = prompt('Lokasi rak (kosongkan jika tidak ada):', p.lokasi_rak || '');
     if (rak === null) return;
-    KPGApi.call('saveStokCabang', { token: tokenAktif(), id_cabang: cabangKatalogAktif, id_barang: p.id, stok: n, lokasi_rak: rak })
-      .then(function () { return muatKatalogServer(); })
+    KPGApi.call('saveStokCabang', { token: tokenAktif(), id_cabang: idCabangStok, id_barang: p.id, stok: n, lokasi_rak: rak })
+      .then(function () { return muatKatalogServer(true); })
       .then(function () { toast('Stok cabang berhasil disimpan di server.'); })
       .catch(function (e) { toast('Gagal menyimpan stok: ' + e.message); });
   }
