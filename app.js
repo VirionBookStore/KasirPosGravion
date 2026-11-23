@@ -1039,9 +1039,10 @@
         '<div class="katalog-admin-visual">' + foto +
         '<button class="katalog-admin-edit" type="button" data-edit-kartu="' + esc(id) + '" data-cabang="' + esc(cabang) + '" aria-label="Edit ' + esc(nama) + '" title="Edit produk">✎</button></div>' +
         '<div class="katalog-admin-info"><div class="katalog-admin-judul">' + esc(nama) + '</div>' +
-        '<div class="katalog-admin-meta"><b>Cabang:</b> ' + esc(namaCabang) + '</div>' +
-        '<div class="katalog-admin-meta"><b>Stok:</b> ' + stok + '</div>' +
-        '<div class="katalog-admin-meta"><b>Lokasi rak:</b> ' + esc(String(kosong ? '-' : (p.lokasi_rak || '-'))) + '</div>' +
+        '<div class="katalog-admin-detailbar"><div class="katalog-admin-detail-left">' +
+        '<div class="katalog-admin-meta">' + esc(namaCabang) + '</div>' +
+        '<div class="katalog-admin-meta">' + esc(String(kosong ? '-' : (p.lokasi_rak || '-'))) + '</div>' +
+        '</div><div class="katalog-admin-stok' + (kosong ? ' stok-nol' : '') + '">' + stok + '</div></div>' +
         '<div class="katalog-admin-harga">' + rp(harga) + '</div></div></article>';
     }).join('') : '<div class="kosong katalog-admin-kosong"><b>Belum ada produk</b><span>Tidak ada barang dengan stok pada cabang yang dipilih.</span></div>';
     if (list.length > tampil.length) {
