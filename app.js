@@ -1349,6 +1349,65 @@
   }
 
   // ---------- Event ----------
+  // Scanner USB/Bluetooth mode keyboard-wedge: baca barcode tanpa fokus ke kolom pencarian.
+  var inputScanKasir = '', timerScanKasir = null, awalScanKasir = 0;
+  function prosesBarcodeKasir(kode) {
+    kode = String(kode || '').trim();
+    if (!kode) return;
+    var cocok = D.produk.filter(function (p) {
+      return String(p.barcode || '').trim().toLowerCase() === kode.toLowerCase()
+        || String(p.kode_barang || '').trim().toLowerCase() === kode.toLowerCase();
+    });
+    if (!cocok.length) {
+      $('#cariProduk').value = kode;
+      katAktif = 'Semua'; renderPOS();
+      toast('Barcode ' + kode + ' tidak ditemukan. Periksa data barcode produk.');
+      return;
+    }
+    if (cocok.length > 1) {
+      $('#cariProduk').value = kode;
+      katAktif = 'Semua'; renderPOS();
+      toast('Barcode cocok dengan lebih dari satu produk. Periksa data barcode.');
+      return;
+    }
+    var p = cocok[0];
+    if (Number(p.stok || 0) <= 0) return toast('Stok ' + p.nama + ' tidak tersedia di cabang/katalog aktif.');
+    if (!p.varian || !p.varian.length) return toast('Varian/harga produk ' + p.nama + ' belum tersedia.');
+    // Produk hasil sinkronisasi GAS saat ini menggunakan satu varian Reguler.
+    if (p.varian.length > 1) {
+      pilihVarian(p);
+      return;
+    }
+    tambahKeKeranjang(p, p.varian[0]);
+    toast(p.nama + ' ditambahkan ke pesanan.');
+  }
+  function tangkapScannerKasir(e) {
+    var halamanKasir = $('#hal-kasir');
+    if (!halamanKasir || !halamanKasir.classList.contains('aktif') || !$('#layarMasuk').hidden) return;
+    if ($('#dlg') && $('#dlg').open) return;
+    var target = e.target;
+    if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.key === 'Enter') {
+      if (timerScanKasir) clearTimeout(timerScanKasir);
+      var kode = inputScanKasir;
+      inputScanKasir = ''; awalScanKasir = 0;
+      if (kode.length >= 4) { e.preventDefault(); e.stopPropagation(); prosesBarcodeKasir(kode); }
+      return;
+    }
+    if (e.key.length !== 1 || !/^[a-zA-Z0-9._\/-]$/.test(e.key)) return;
+    var sekarang = Date.now();
+    if (!awalScanKasir || sekarang - awalScanKasir > 1200) { inputScanKasir = ''; awalScanKasir = sekarang; }
+    inputScanKasir += e.key;
+    if (timerScanKasir) clearTimeout(timerScanKasir);
+    // Sebagian scanner tidak mengirim Enter; jeda singkat menutup satu pembacaan.
+    timerScanKasir = setTimeout(function () {
+      var kode = inputScanKasir;
+      inputScanKasir = ''; awalScanKasir = 0; timerScanKasir = null;
+      if (kode.length >= 4) prosesBarcodeKasir(kode);
+    }, 140);
+  }
+
   function ikatEvent() {
     var pad = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'hapus'];
     $('#padPin').innerHTML = pad.map(function (k) { return k ? '<button data-k="' + k + '" aria-label="' + (k === 'hapus' ? 'Hapus' : k) + '">' + (k === 'hapus' ? '<svg viewBox="0 0 24 24"><path d="M9 5h11v14H9l-6-7z"/><path d="M13 9l5 6M18 9l-5 6"/></svg>' : k) + '</button>' : '<span></span>'; }).join('');
@@ -1372,6 +1431,7 @@
     if (window.addEventListener) window.addEventListener('online', syncPending);
 
     $('#cariProduk').oninput = renderPOS;
+    document.addEventListener('keydown', tangkapScannerKasir, true);
     $('#btnScanKasir').onclick = bukaScannerKasir;
     $('#chipKategori').onclick = function (e) { var c = e.target.closest('.chip'); if (c) { katAktif = c.dataset.k; renderPOS(); } };
     $('#gridProduk').onclick = function (e) { var more = e.target.closest('[data-muat-lagi]'); if (more) { jumlahProdukTampil += 80; renderPOS(); return; } var k = e.target.closest('.kartu-produk'); if (k) pilihVarian(D.produk.find(function (p) { return p.id === k.dataset.id; })); };
