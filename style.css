@@ -697,3 +697,56 @@ html.mode-pilih [data-pilih-hover]{outline:2px solid #f43f5e!important;outline-o
   position:absolute;left:8%;right:8%;top:50%;height:2px;
   background:#23c777;box-shadow:0 0 8px #23c777;
 }
+
+
+/* Pencarian, scanner, dan filter cabang sejajar dalam satu baris */
+.katalog-cari-wrap{
+  display:flex!important;
+  flex-wrap:nowrap!important;
+  align-items:center!important;
+  gap:8px!important;
+  width:100%!important;
+  margin-bottom:12px!important;
+}
+.katalog-cari-wrap .cari-lebar{
+  flex:1 1 auto!important;
+  min-width:100px!important;
+  width:auto!important;
+  margin:0!important;
+}
+.katalog-cari-wrap .katalog-scan-btn{
+  flex:0 0 46px!important;
+  width:46px!important;
+  margin:0!important;
+}
+.katalog-cari-wrap .katalog-pilih-cabang{
+  flex:0 1 210px!important;
+  width:210px!important;
+  min-width:118px!important;
+  max-width:26%!important;
+  height:44px!important;
+  margin:0!important;
+  padding:0 10px!important;
+  border:1px solid #d5d9d6!important;
+  border-radius:12px!important;
+  background:#fff!important;
+  color:#26332c!important;
+  font-size:13px!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+@media(max-width:600px){
+  .katalog-cari-wrap{gap:6px!important}
+  .katalog-cari-wrap .katalog-pilih-cabang{
+    flex-basis:clamp(112px,31vw,155px)!important;
+    width:clamp(112px,31vw,155px)!important;
+    max-width:34%!important;
+    min-width:105px!important;
+    padding:0 7px!important;
+    font-size:11px!important;
+  }
+  .katalog-cari-wrap .katalog-scan-btn{
+    flex-basis:40px!important;width:40px!important;height:42px!important;
+  }
+}
