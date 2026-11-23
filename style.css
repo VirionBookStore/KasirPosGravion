@@ -753,7 +753,7 @@ html.mode-pilih [data-pilih-hover]{outline:2px solid #f43f5e!important;outline-o
 
 
 /* POS Owner: filter cabang ringkas, katalog default gabungan seluruh cabang */
-.pos-pilih-cabang{flex:0 1 190px;min-width:150px;max-width:220px;height:42px;padding:0 12px;border:1px solid var(--garis);border-radius:12px;background:var(--kartu);color:var(--teks);font:600 13px inherit;outline-offset:2px}
+.pos-pilih-cabang{flex:0 1 190px;min-width:150px;max-width:220px;height:42px;padding:0 12px;border:1px solid var(--garis);border-radius:12px;background:var(--kartu);color:var(--teks);font:inherit;font-size:13px;font-weight:600;outline-offset:2px}
 .pos .bar{gap:12px;flex-wrap:wrap}
 .pos .bar .cari{flex:1 1 220px;min-width:160px}
 .pos .bar .pos-pilih-cabang[hidden]{display:none!important}
