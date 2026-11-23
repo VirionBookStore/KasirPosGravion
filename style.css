@@ -483,3 +483,6 @@ html.mode-pilih [data-pilih-hover]{outline:2px solid #f43f5e!important;outline-o
 .katalog-admin-menu-edit{display:flex;flex-direction:column;gap:8px}
 .katalog-admin-menu-edit .tombol{width:100%;justify-content:center}
 @media(max-width:390px){#tabelProduk.katalog-admin-grid{gap:8px!important}#tabelProduk .katalog-admin-visual{height:150px}#tabelProduk .katalog-admin-info{padding:9px}#tabelProduk .katalog-admin-judul{font-size:13px}}
+
+/* Produk: tombol muat bertahap tidak menggeser kartu */
+#tabelProduk .katalog-muat-lagi{grid-column:1/-1;width:100%;margin:6px 0 18px;min-height:44px;justify-content:center}
