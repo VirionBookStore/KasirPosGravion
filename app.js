@@ -903,10 +903,11 @@
     if (!sel) {
       sel = document.createElement('select');
       sel.id = 'pilihCabangKatalog';
-      sel.className = 'cari-lebar';
-      sel.style.margin = '0 0 12px';
+      sel.className = 'katalog-pilih-cabang';
       sel.setAttribute('aria-label', 'Filter cabang produk');
-      head.parentNode.insertBefore(sel, head);
+      var barCari = document.querySelector('.katalog-cari-wrap');
+      if (barCari) barCari.appendChild(sel);
+      else head.parentNode.insertBefore(sel, head);
       sel.onchange = function () {
         filterKatalogOwner = sel.value || 'SEMUA';
         katalogVisibleCount = katalogPageSize;
