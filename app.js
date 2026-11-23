@@ -688,6 +688,13 @@
       D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
       D.id_cabang_aktif = idCabang;
       cabangTransaksiAktif = idCabang;
+      // Simpan snapshot stok cabang terpilih secara terpisah agar perubahan lokal
+      // tidak tercampur dengan stok agregat OWNER atau cabang lain.
+      if (!D.stokPerCabang) D.stokPerCabang = {};
+      D.stokPerCabang[String(idCabang)] = {};
+      D.produk.forEach(function (p) {
+        D.stokPerCabang[String(idCabang)][String(p.id)] = Number(p.stok) || 0;
+      });
       renderPOS();
       return D.produk;
     });
