@@ -894,14 +894,9 @@
       '<div class="dlg-aksi"><button class="tombol" type="button" id="btnCetak">Cetak struk</button><button class="tombol utama" value="ok">Transaksi baru</button></div>', function (f) {
         $('#btnCetak', f).onclick = function () { cetak(trx); };
       });
-    if (pengguna && pengguna.peran === 'owner') {
-      // Pertahankan cabang aktif setelah checkout; stok akan diperbarui dari cabang ini.
-      if (cabangTransaksiAktif) {
-        muatBarangUntukCabang(cabangTransaksiAktif).catch(function (e) { toast('Transaksi tersimpan, tetapi stok cabang gagal dimuat ulang: ' + e.message); });
-      } else {
-        muatSemuaBarangOwner().catch(function (e) { toast('Gagal memuat ulang stok semua cabang: ' + e.message); });
-      }
-    } else renderPOS();
+    // Stok lokal sudah dikurangi di atas. Jangan menarik stok server sebelum syncPush ACK,
+    // karena respons server yang masih lama dapat menimpa pengurangan lokal sementara.
+    renderPOS();
   }
 
   // ---------- Struk 58mm ----------
