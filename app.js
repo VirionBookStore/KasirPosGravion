@@ -1025,6 +1025,60 @@
     var video = $('#videoScanKatalog');
     if (video) { try { video.pause(); video.srcObject = null; } catch (e) {} }
   }
+  var kasirScanStream = null;
+  var kasirScanActive = false;
+  function stopKasirScanner() {
+    kasirScanActive = false;
+    if (kasirScanStream) {
+      kasirScanStream.getTracks().forEach(function (track) { track.stop(); });
+      kasirScanStream = null;
+    }
+    var video = $('#videoScanKasir');
+    if (video) { try { video.pause(); video.srcObject = null; } catch (e) {} }
+  }
+  function bukaScannerKasir() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return toast('Kamera tidak tersedia. Pastikan aplikasi dibuka melalui HTTPS.');
+    }
+    if (!('BarcodeDetector' in window)) {
+      return toast('Pemindai barcode belum didukung browser ini. Gunakan Chrome versi terbaru atau ketik barcode.');
+    }
+    dialog('<h3>Scan barcode barang</h3><p class="redup kecil">Arahkan barcode ke kamera untuk mencari barang di katalog Kasir.</p><div class="katalog-scan-frame"><video id="videoScanKasir" autoplay muted playsinline></video><span class="katalog-scan-line"></span></div><div class="dlg-aksi"><button type="button" class="tombol" id="btnTutupScanKasir">Tutup kamera</button></div>', function (f) {
+      var video = $('#videoScanKasir', f), detector;
+      try { detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code'] }); }
+      catch (e) { toast('Format barcode tidak didukung browser.'); tutupDialog(); return; }
+      $('#btnTutupScanKasir', f).onclick = function () { stopKasirScanner(); tutupDialog(); };
+      kasirScanActive = true;
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+        .then(function (stream) {
+          if (!kasirScanActive) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+          kasirScanStream = stream; video.srcObject = stream; return video.play();
+        }).then(function () {
+          function deteksi() {
+            if (!kasirScanActive || !video || !video.srcObject) return;
+            detector.detect(video).then(function (hasil) {
+              if (hasil && hasil.length && kasirScanActive) {
+                var kode = String(hasil[0].rawValue || '').trim();
+                if (kode) {
+                  stopKasirScanner(); tutupDialog();
+                  var cari = $('#cariProduk');
+                  if (cari) { cari.value = kode; katAktif = 'Semua'; renderPOS(); cari.focus(); }
+                  toast('Barcode terbaca: ' + kode + '. Pilih barang dari hasil pencarian.');
+                  return;
+                }
+              }
+              if (kasirScanActive) setTimeout(deteksi, 180);
+            }).catch(function () { if (kasirScanActive) setTimeout(deteksi, 300); });
+          }
+          deteksi();
+        }).catch(function (err) {
+          stopKasirScanner();
+          toast(err && err.name === 'NotAllowedError' ? 'Izin kamera ditolak. Aktifkan izin kamera untuk situs ini.' : 'Kamera gagal dibuka. Periksa kamera dan izin browser.');
+        });
+      $('#dlg').addEventListener('close', stopKasirScanner, { once: true });
+    });
+  }
+
   function bukaScannerKatalog() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       return toast('Kamera tidak tersedia. Pastikan aplikasi dibuka melalui HTTPS.');
@@ -1318,6 +1372,7 @@
     if (window.addEventListener) window.addEventListener('online', syncPending);
 
     $('#cariProduk').oninput = renderPOS;
+    $('#btnScanKasir').onclick = bukaScannerKasir;
     $('#chipKategori').onclick = function (e) { var c = e.target.closest('.chip'); if (c) { katAktif = c.dataset.k; renderPOS(); } };
     $('#gridProduk').onclick = function (e) { var more = e.target.closest('[data-muat-lagi]'); if (more) { jumlahProdukTampil += 80; renderPOS(); return; } var k = e.target.closest('.kartu-produk'); if (k) pilihVarian(D.produk.find(function (p) { return p.id === k.dataset.id; })); };
     $('#kerDaftar').onclick = function (e) {
