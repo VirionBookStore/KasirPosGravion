@@ -620,9 +620,11 @@
     $('#chipKategori').innerHTML = kats.map(function (k) { var n = k === 'Semua' ? D.produk.length : D.produk.filter(function (p) { return p.kategori === k; }).length;
       return '<button class="chip' + (k === katAktif ? ' aktif' : '') + '" data-k="' + esc(k) + '" aria-pressed="' + (k === katAktif) + '">' + esc(k) + '<span class="chip-n">' + n + '</span></button>'; }).join('');
     var q = $('#cariProduk').value.trim().toLowerCase();
+    var kataCari = q.split(/\\s+/).filter(Boolean);
     var list = D.produk.filter(function (p) {
-      var target = [p.nama,p.id,p.kode_barang,p.barcode,p.id_cabang,p.lokasi_rak].join(' ').toLowerCase();
-      return (katAktif === 'Semua' || p.kategori === katAktif) && target.indexOf(q) > -1;
+      var target = [p.nama,p.id,p.kode_barang,p.barcode,p.id_cabang,p.nama_cabang,p.lokasi_rak].join(' ').toLowerCase();
+      var cocok = !kataCari.length || kataCari.every(function (kata) { return target.indexOf(kata) > -1; });
+      return (katAktif === 'Semua' || p.kategori === katAktif) && cocok;
     });
     var tampil = list.slice(0, jumlahProdukTampil);
     $('#gridProduk').innerHTML = list.length ? tampil.map(function (p, n) {
@@ -909,6 +911,17 @@
   function muatKatalogServer(paksa) {
     var token = tokenAktif();
     if (!token) return Promise.reject(new Error('Sesi online tidak ditemukan. Login online kembali.'));
+    // Cache katalog dipisah per cabang agar stok cabang tidak tertukar antar akun.
+    var cacheScope = (pengguna && pengguna.peran === 'owner') ? (filterKatalogOwner || 'SEMUA') : String((pengguna && pengguna.id_cabang) || D.id_cabang_aktif || 'TANPA-CABANG');
+    var cacheKey = 'catalog:v2:' + cacheScope;
+    if (!dataKatalogServer.length && window.KPGStorage && KPGStorage.getMeta) {
+      KPGStorage.getMeta(cacheKey).then(function (cached) {
+        if (Array.isArray(cached) && cached.length && cacheScope === ((pengguna && pengguna.peran === 'owner') ? (filterKatalogOwner || 'SEMUA') : String((pengguna && pengguna.id_cabang) || D.id_cabang_aktif || 'TANPA-CABANG'))) {
+          dataKatalogServer = cached;
+          renderKelola();
+        }
+      }).catch(function (e) { console.warn('Cache katalog tidak dapat dibaca:', e); });
+    }
     // Gunakan data yang sudah ada di memori dari bootstrap/transaksi; jangan kosongkan tabel.
     if (dataKatalogServer.length) renderKelola();
     else if (D.produk && D.produk.length) {
@@ -935,6 +948,9 @@
         if (!Array.isArray(hasil.data)) throw new Error('Data katalog dari server tidak valid.');
         dataKatalogServer = hasil.data;
         cacheKatalogPerCabang[filterKatalogOwner] = dataKatalogServer.slice();
+        if (window.KPGStorage && KPGStorage.setMeta) {
+          KPGStorage.setMeta(cacheKey, dataKatalogServer).catch(function (e) { console.warn('Cache katalog gagal disimpan:', e); });
+        }
         // Jangan mengganti D.produk: itu adalah dataset Kasir OWNER (stok agregat lintas cabang).
         renderKelola();
         return dataKatalogServer;
