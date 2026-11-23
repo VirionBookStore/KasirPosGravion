@@ -604,3 +604,32 @@ html.mode-pilih [data-pilih-hover]{outline:2px solid #f43f5e!important;outline-o
   #tabelProduk .katalog-admin-visual{height:118px!important;min-height:118px}
   #tabelProduk .katalog-admin-info{min-height:100px}
 }
+
+
+/* Rasio foto vertikal seperti katalog online: seluruh foto terlihat */
+#tabelProduk .katalog-admin-visual{
+  width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  aspect-ratio:4 / 5!important;
+  padding:6px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:hidden!important;
+  background:#fff!important;
+  box-sizing:border-box!important;
+}
+#tabelProduk .katalog-admin-visual .katalog-admin-foto{
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  display:block!important;
+  background:#fff!important;
+}
+#tabelProduk .katalog-admin-visual .katalog-admin-inisial{
+  flex:0 0 auto;
+}
