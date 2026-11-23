@@ -1021,6 +1021,12 @@
       }
     });
 
+    // Dahulukan produk yang memiliki stok pada cabang terpilih.
+    list.sort(function (a, b) {
+      var stokA = Number(a.data.stok || 0) > 0 && !a.kosong ? 1 : 0;
+      var stokB = Number(b.data.stok || 0) > 0 && !b.kosong ? 1 : 0;
+      return stokB - stokA;
+    });
     var tampil = list.slice(0, katalogVisibleCount);
     $('#tabelProduk').innerHTML = tampil.length ? tampil.map(function (entry) {
       var p = entry.data, kosong = entry.kosong;
