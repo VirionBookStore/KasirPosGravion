@@ -976,9 +976,9 @@
       return !kataCari.length || kataCari.every(function (kata) { return target.indexOf(kata) > -1; });
     });
     $('#tabelProduk').innerHTML = list.length ? list.map(function (p) {
-      var id = String(p.id_barang || p.id || ''), nama = p.nama_barang || p.nama || '';
+      var id = String(p.id_barang || p.id || ''), nama = String(p.nama_barang || p.nama || '');
       var cabang = String(p.id_cabang || (owner ? '' : cabangKatalogAktif));
-      var namaCabang = p.nama_cabang || cabang || 'Semua cabang';
+      var namaCabang = String(p.nama_cabang || cabang || 'Semua cabang');
       var harga = Number(p.harga_jual || (p.varian && p.varian[0] ? p.varian[0].harga : 0)) || 0;
       var stok = Number(p.stok) || 0;
       var foto = p.foto ? '<img class="katalog-admin-foto" src="' + esc(p.foto) + '" alt="" loading="lazy">' :
@@ -989,7 +989,7 @@
         '<div class="katalog-admin-info"><div class="katalog-admin-judul">' + esc(nama) + '</div>' +
         '<div class="katalog-admin-meta"><b>Cabang:</b> ' + esc(namaCabang) + '</div>' +
         '<div class="katalog-admin-meta"><b>Stok:</b> ' + stok + '</div>' +
-        '<div class="katalog-admin-meta"><b>Lokasi rak:</b> ' + esc(p.lokasi_rak || '-') + '</div>' +
+        '<div class="katalog-admin-meta"><b>Lokasi rak:</b> ' + esc(String(p.lokasi_rak || '-')) + '</div>' +
         '<div class="katalog-admin-harga">' + rp(harga) + '</div></div></article>';
     }).join('') : '<div class="kosong katalog-admin-kosong"><b>Belum ada produk</b><span>Produk tidak ditemukan pada pencarian atau filter cabang ini.</span></div>';
   }
