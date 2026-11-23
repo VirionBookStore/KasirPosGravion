@@ -620,7 +620,7 @@
     $('#chipKategori').innerHTML = kats.map(function (k) { var n = k === 'Semua' ? D.produk.length : D.produk.filter(function (p) { return p.kategori === k; }).length;
       return '<button class="chip' + (k === katAktif ? ' aktif' : '') + '" data-k="' + esc(k) + '" aria-pressed="' + (k === katAktif) + '">' + esc(k) + '<span class="chip-n">' + n + '</span></button>'; }).join('');
     var q = $('#cariProduk').value.trim().toLowerCase();
-    var kataCari = q.split(/\\s+/).filter(Boolean);
+    var kataCari = q.split(/\s+/).filter(Boolean);
     var list = D.produk.filter(function (p) {
       var target = [p.nama,p.id,p.kode_barang,p.barcode,p.id_cabang,p.nama_cabang,p.lokasi_rak].join(' ').toLowerCase();
       var cocok = !kataCari.length || kataCari.every(function (kata) { return target.indexOf(kata) > -1; });
