@@ -985,6 +985,63 @@
     });
     return katalogFetchPromise;
   }
+  var katalogScanStream = null;
+  var katalogScanActive = false;
+  function stopKatalogScanner() {
+    katalogScanActive = false;
+    if (katalogScanStream) {
+      katalogScanStream.getTracks().forEach(function (track) { track.stop(); });
+      katalogScanStream = null;
+    }
+    var video = $('#videoScanKatalog');
+    if (video) { try { video.pause(); video.srcObject = null; } catch (e) {} }
+  }
+  function bukaScannerKatalog() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return toast('Kamera tidak tersedia. Pastikan aplikasi dibuka melalui HTTPS.');
+    }
+    if (!('BarcodeDetector' in window)) {
+      return toast('Pemindai barcode belum didukung browser ini. Gunakan Chrome versi terbaru atau ketik barcode.');
+    }
+    dialog('<h3>Scan barcode produk</h3><p class="redup kecil">Arahkan barcode ke dalam kotak kamera.</p><div class="katalog-scan-frame"><video id="videoScanKatalog" autoplay muted playsinline></video><span class="katalog-scan-line"></span></div><div class="dlg-aksi"><button type="button" class="tombol" id="btnTutupScanKatalog">Tutup kamera</button></div>', function (f) {
+      var video = $('#videoScanKatalog', f);
+      var detector;
+      try { detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code'] }); }
+      catch (e) { toast('Format barcode tidak didukung browser.'); tutupDialog(); return; }
+      $('#btnTutupScanKatalog', f).onclick = function () { stopKatalogScanner(); tutupDialog(); };
+      katalogScanActive = true;
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+        .then(function (stream) {
+          if (!katalogScanActive) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+          katalogScanStream = stream;
+          video.srcObject = stream;
+          return video.play();
+        }).then(function () {
+          function deteksi() {
+            if (!katalogScanActive || !video || !video.srcObject) return;
+            detector.detect(video).then(function (hasil) {
+              if (hasil && hasil.length && katalogScanActive) {
+                var kode = hasil[0].rawValue || '';
+                if (kode) {
+                  stopKatalogScanner(); tutupDialog();
+                  var cari = $('#cariKelola');
+                  if (cari) { cari.value = kode; katalogVisibleCount = katalogPageSize; renderKelola(); cari.focus(); }
+                  toast('Barcode ditemukan: ' + kode);
+                  return;
+                }
+              }
+              if (katalogScanActive) setTimeout(deteksi, 180);
+            }).catch(function () { if (katalogScanActive) setTimeout(deteksi, 300); });
+          }
+          deteksi();
+        }).catch(function (err) {
+          stopKatalogScanner();
+          toast(err && err.name === 'NotAllowedError' ? 'Izin kamera ditolak. Aktifkan izin kamera untuk situs ini.' : 'Kamera gagal dibuka. Periksa kamera dan izin browser.');
+        });
+      $('#dlg').addEventListener('close', stopKatalogScanner, { once: true });
+    });
+  }
+
   function renderKelola() {
     var input = $('#cariKelola');
     var q = String(input && input.value || '').toLowerCase().trim();
@@ -1251,6 +1308,7 @@
     });
 
     $('#cariKelola').oninput = function () { katalogVisibleCount = katalogPageSize; renderKelola(); };
+    $('#btnScanKatalog').onclick = bukaScannerKatalog;
     $('#btnTambahProduk').onclick = function () { formProduk(null); };
     $('#btnKategori').onclick = formKategori;
     $('#tabelProduk').onclick = function (e) {
