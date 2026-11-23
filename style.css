@@ -486,3 +486,20 @@ html.mode-pilih [data-pilih-hover]{outline:2px solid #f43f5e!important;outline-o
 
 /* Produk: tombol muat bertahap tidak menggeser kartu */
 #tabelProduk .katalog-muat-lagi{grid-column:1/-1;width:100%;margin:6px 0 18px;min-height:44px;justify-content:center}
+
+
+/* Barang tanpa stok di seluruh cabang: satu kartu dengan foto grayscale */
+#tabelProduk .katalog-admin-kartu.stok-kosong .katalog-admin-foto,
+#tabelProduk .katalog-admin-kartu.stok-kosong .katalog-admin-inisial{
+  filter:grayscale(1);
+  opacity:.58;
+}
+#tabelProduk .katalog-admin-kartu.stok-kosong .katalog-admin-visual{
+  background:#e9e9e9;
+}
+#tabelProduk .katalog-admin-kartu.stok-kosong .katalog-admin-meta{
+  color:#929292;
+}
+#tabelProduk .katalog-admin-kartu.stok-kosong .katalog-admin-harga{
+  color:#858585;
+}
