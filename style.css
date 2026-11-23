@@ -420,3 +420,31 @@ html.mode-pilih [data-pilih-hover]{outline:2px solid #f43f5e!important;outline-o
 .foto-baris{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .foto-pratinjau{width:64px;height:64px;flex:none}
 @media print{.struk .struk-logo{display:block;width:22mm;height:auto;margin:0 auto 2mm}}
+
+
+/* ===== Katalog admin Produk & Stok (Tahap 1) ===== */
+.katalog-admin-bungkus{padding:14px;background:transparent;border:0;box-shadow:none;overflow:visible}
+.katalog-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.katalog-admin-kartu{min-width:0;overflow:hidden;background:var(--kartu);border:1px solid var(--garis);border-radius:var(--r-besar);box-shadow:var(--bayang);display:flex;flex-direction:column;animation:munculPop .25s ease both}
+.katalog-admin-visual{height:132px;position:relative;display:grid;place-items:center;overflow:hidden;background:var(--nada0)}
+.katalog-admin-foto{width:100%;height:100%;object-fit:cover}
+.katalog-admin-inisial{width:72px;height:72px;border-radius:22px;display:grid;place-items:center;background:var(--utama-muda);color:var(--utama-teks);font-size:32px;font-weight:800}
+.katalog-admin-visual .lencana{position:absolute;right:10px;top:10px}
+.katalog-admin-info{padding:12px 13px 8px;display:grid;gap:5px;min-width:0}
+.katalog-admin-judul{font-size:15px;font-weight:800;line-height:1.35;min-height:40px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.katalog-admin-harga{font-size:17px;font-weight:800;color:var(--utama-teks);margin-top:3px}
+.katalog-admin-meta{font-size:12px;color:var(--redup);overflow-wrap:anywhere}
+.katalog-admin-aksi{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:8px 12px 12px;margin-top:auto}
+.katalog-admin-aksi .tombol{min-width:0;padding:8px 6px;font-size:12px;white-space:normal}
+.katalog-admin-kosong{grid-column:1/-1}
+@media(max-width:760px){
+  .katalog-admin-bungkus{padding:4px 0}
+  .katalog-admin-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .katalog-admin-visual{height:112px}
+  .katalog-admin-info{padding:10px 10px 6px}
+  .katalog-admin-judul{font-size:13px;min-height:36px}
+  .katalog-admin-harga{font-size:15px}
+  .katalog-admin-meta{font-size:11px}
+  .katalog-admin-aksi{grid-template-columns:1fr;padding:6px 10px 10px;gap:6px}
+  .katalog-admin-aksi .tombol{min-height:38px}
+}
