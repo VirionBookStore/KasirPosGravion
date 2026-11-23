@@ -978,19 +978,19 @@
     $('#tabelProduk').innerHTML = list.length ? list.map(function (p) {
       var id = String(p.id_barang || p.id || ''), nama = p.nama_barang || p.nama || '';
       var cabang = String(p.id_cabang || (owner ? '' : cabangKatalogAktif));
+      var namaCabang = p.nama_cabang || cabang || 'Semua cabang';
       var harga = Number(p.harga_jual || (p.varian && p.varian[0] ? p.varian[0].harga : 0)) || 0;
       var stok = Number(p.stok) || 0;
       var foto = p.foto ? '<img class="katalog-admin-foto" src="' + esc(p.foto) + '" alt="" loading="lazy">' :
         '<span class="katalog-admin-inisial" aria-hidden="true">' + esc((nama.trim().charAt(0) || 'P').toUpperCase()) + '</span>';
       return '<article class="katalog-admin-kartu">' +
-        '<div class="katalog-admin-visual">' + foto + '<span class="lencana' + (stok <= 5 ? ' merah' : '') + '">' + stok + ' stok</span></div>' +
+        '<div class="katalog-admin-visual">' + foto +
+        '<button class="katalog-admin-edit" type="button" data-edit-kartu="' + esc(id) + '" data-cabang="' + esc(cabang) + '" aria-label="Edit ' + esc(nama) + '" title="Edit produk">✎</button></div>' +
         '<div class="katalog-admin-info"><div class="katalog-admin-judul">' + esc(nama) + '</div>' +
-        '<div class="redup kecil">' + esc(id) + (p.kategori ? ' · ' + esc(p.kategori) : '') + '</div>' +
-        '<div class="katalog-admin-harga">' + rp(harga) + '</div>' +
-        '<div class="katalog-admin-meta">' + esc(p.nama_cabang || cabang || 'Semua cabang') + '</div>' +
-        '<div class="katalog-admin-meta">Barcode: ' + esc(p.barcode || '-') + ' · Rak: ' + esc(p.lokasi_rak || '-') + '</div></div>' +
-        '<div class="katalog-admin-aksi"><button class="tombol" type="button" data-stok="' + esc(id) + '" data-cabang="' + esc(cabang) + '">Atur stok</button>' +
-        '<button class="tombol utama" type="button" data-edit="' + esc(id) + '">Ubah master</button></div></article>';
+        '<div class="katalog-admin-meta"><b>Cabang:</b> ' + esc(namaCabang) + '</div>' +
+        '<div class="katalog-admin-meta"><b>Stok:</b> ' + stok + '</div>' +
+        '<div class="katalog-admin-meta"><b>Lokasi rak:</b> ' + esc(p.lokasi_rak || '-') + '</div>' +
+        '<div class="katalog-admin-harga">' + rp(harga) + '</div></div></article>';
     }).join('') : '<div class="kosong katalog-admin-kosong"><b>Belum ada produk</b><span>Produk tidak ditemukan pada pencarian atau filter cabang ini.</span></div>';
   }
   function formProduk(p) {
@@ -1198,16 +1198,19 @@
     $('#btnTambahProduk').onclick = function () { formProduk(null); };
     $('#btnKategori').onclick = formKategori;
     $('#tabelProduk').onclick = function (e) {
-      var ed = e.target.closest('[data-edit]'), st = e.target.closest('[data-stok]');
-      if (ed) {
-        var master = D.produk.find(function (p) { return p.id === ed.dataset.edit; });
-        if (master) formProduk(master);
-      }
-      if (st) {
-        var id = st.dataset.stok, idCabang = st.dataset.cabang;
-        var row = dataKatalogServer.find(function (x) { return String(x.id_barang || x.id || '') === id && String(x.id_cabang || '') === String(idCabang || ''); });
-        if (row) aturStokCabang(barangDariServer(row));
-      }
+      var edit = e.target.closest('[data-edit-kartu]');
+      if (!edit) return;
+      var id = edit.dataset.editKartu, idCabang = edit.dataset.cabang;
+      var row = dataKatalogServer.find(function (x) { return String(x.id_barang || x.id || '') === id && String(x.id_cabang || '') === String(idCabang || ''); });
+      if (!row) return toast('Data produk tidak ditemukan. Muat ulang katalog.');
+      var produk = barangDariServer(row);
+      dialog('<h3>Edit produk</h3><p class="redup kecil">' + esc(produk.nama) + '</p><div class="dlg-aksi katalog-admin-menu-edit">' +
+        '<button class="tombol" type="button" id="aksiEditJudul">Ubah judul / master</button>' +
+        '<button class="tombol utama" type="button" id="aksiEditStok">Ubah stok & lokasi rak</button>' +
+        '<button class="tombol" value="batal" formnovalidate>Tutup</button></div>', function (f) {
+          $('#aksiEditJudul', f).onclick = function () { tutupDialog(); formProduk(D.produk.find(function (p) { return p.id === produk.id; }) || produk); };
+          $('#aksiEditStok', f).onclick = function () { tutupDialog(); aturStokCabang(produk); };
+        });
     };
 
     $('#filterTanggal').onchange = renderRiwayat;
