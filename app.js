@@ -457,6 +457,9 @@
       D.id_cabang_aktif = cabangOffline;
     }
     pengguna = k;
+    if (k.peran === 'owner') {
+      try { cabangTransaksiAktif = localStorage.getItem('kpg-cabang-transaksi-owner') || ''; } catch (e) { cabangTransaksiAktif = ''; }
+    }
     try {
       if (token) {
         localStorage.setItem('kpg-token', token);
@@ -586,7 +589,9 @@
       try { userAktif = JSON.parse(localStorage.getItem('kpg-user') || 'null'); } catch (e) {}
       if (!userAktif) return;
       if (String(userAktif.peran || '').toUpperCase() === 'OWNER') {
-        return muatSemuaBarangOwner();
+        return cabangTransaksiAktif
+          ? muatBarangUntukCabang(cabangTransaksiAktif)
+          : muatSemuaBarangOwner();
       }
       if (userAktif.id_cabang) return muatBarangUntukCabang(userAktif.id_cabang);
     }).catch(function (e) { console.warn('Antrean sinkronisasi / muat ulang stok:', e); })
@@ -603,8 +608,11 @@
     ({ kasir: function () {
         if (pengguna && pengguna.peran === 'owner') {
           if (produkKasirCache) { D.produk = produkKasirCache.map(function (p) { return Object.assign({}, p); }); renderPOS(); }
-          muatSemuaBarangOwner().then(function () { produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); }); })
-            .catch(function (e) { if (!produkKasirCache) toast('Gagal memuat stok seluruh cabang: ' + e.message); });
+          var muatAktif = cabangTransaksiAktif
+            ? muatBarangUntukCabang(cabangTransaksiAktif)
+            : muatSemuaBarangOwner();
+          muatAktif.then(function () { produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); }); })
+            .catch(function (e) { if (!produkKasirCache) toast('Gagal memuat stok cabang: ' + e.message); });
         } else renderPOS();
       }, produk: function () {
         if (pengguna && pengguna.peran === 'owner') produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
@@ -698,6 +706,7 @@
       if (pengguna && pengguna.peran === 'owner') {
         if (!id) {
           cabangTransaksiAktif = '';
+          try { localStorage.removeItem('kpg-cabang-transaksi-owner'); } catch (e) {}
           muatSemuaBarangOwner().catch(function (e) { toast('Gagal memuat seluruh cabang: ' + e.message); });
         } else {
           muatBarangUntukCabang(id).catch(function (e) { toast('Gagal memuat cabang: ' + e.message); });
@@ -712,7 +721,8 @@
       D.produk = r.data.map(barangDariServer);
       D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
       D.id_cabang_aktif = idCabang;
-      cabangTransaksiAktif = idCabang;
+      cabangTransaksiAktif = String(idCabang);
+      try { localStorage.setItem('kpg-cabang-transaksi-owner', cabangTransaksiAktif); } catch (e) {}
       var pilihCabang = $('#pilihCabangTransaksi');
       if (pilihCabang) pilihCabang.value = idCabang;
       // Simpan snapshot stok cabang terpilih secara terpisah agar perubahan lokal
@@ -885,8 +895,12 @@
         $('#btnCetak', f).onclick = function () { cetak(trx); };
       });
     if (pengguna && pengguna.peran === 'owner') {
-      cabangTransaksiAktif = '';
-      muatSemuaBarangOwner().catch(function (e) { toast('Gagal memuat ulang stok semua cabang: ' + e.message); });
+      // Pertahankan cabang aktif setelah checkout; stok akan diperbarui dari cabang ini.
+      if (cabangTransaksiAktif) {
+        muatBarangUntukCabang(cabangTransaksiAktif).catch(function (e) { toast('Transaksi tersimpan, tetapi stok cabang gagal dimuat ulang: ' + e.message); });
+      } else {
+        muatSemuaBarangOwner().catch(function (e) { toast('Gagal memuat ulang stok semua cabang: ' + e.message); });
+      }
     } else renderPOS();
   }
 
