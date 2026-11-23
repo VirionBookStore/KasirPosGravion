@@ -633,3 +633,47 @@ html.mode-pilih [data-pilih-hover]{outline:2px solid #f43f5e!important;outline-o
 #tabelProduk .katalog-admin-visual .katalog-admin-inisial{
   flex:0 0 auto;
 }
+
+
+/* Detail produk ringkas: cabang dan rak di kiri, angka stok menonjol di kanan */
+#tabelProduk .katalog-admin-detailbar{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:6px!important;
+  width:100%;
+  margin:4px 0 2px;
+}
+#tabelProduk .katalog-admin-detail-left{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  justify-content:center!important;
+  gap:3px!important;
+  min-width:0;
+  flex:1 1 auto;
+}
+#tabelProduk .katalog-admin-detail-left .katalog-admin-meta{
+  font-size:10px!important;
+  line-height:1.25!important;
+  color:#718078!important;
+  font-weight:600!important;
+  overflow-wrap:anywhere;
+}
+#tabelProduk .katalog-admin-stok{
+  flex:0 0 auto;
+  min-width:30px;
+  padding:5px 8px;
+  border-radius:9px;
+  background:#e6f3ec;
+  color:#176344;
+  font-size:16px;
+  line-height:1;
+  font-weight:800;
+  text-align:center;
+  font-variant-numeric:tabular-nums;
+}
+#tabelProduk .katalog-admin-stok.stok-nol{
+  background:#eeeeee;
+  color:#858585;
+}
