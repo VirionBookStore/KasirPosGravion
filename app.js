@@ -975,15 +975,23 @@
       var target = [p.nama_barang || p.nama || '', p.id_barang || p.id || '', p.barcode || '', p.id_cabang || '', p.nama_cabang || '', p.kategori || '', p.lokasi_rak || ''].join(' ').toLowerCase();
       return !kataCari.length || kataCari.every(function (kata) { return target.indexOf(kata) > -1; });
     });
-    $('#tabelProduk').innerHTML = '<thead><tr><th>Produk</th><th>Kategori</th><th>Cabang</th><th>Barcode</th><th>Harga</th><th>Stok</th><th>Rak</th><th></th></tr></thead><tbody>' +
-      (list.map(function (p) {
-        var id = String(p.id_barang || p.id || ''), nama = p.nama_barang || p.nama || '';
-        var cabang = String(p.id_cabang || (owner ? '' : cabangKatalogAktif));
-        var harga = Number(p.harga_jual || (p.varian && p.varian[0] ? p.varian[0].harga : 0)) || 0;
-        return '<tr><td><b>' + esc(nama) + '</b><div class="redup kecil">' + esc(id) + '</div></td><td>' + esc(p.kategori || 'Umum') + '</td><td>' + esc(p.nama_cabang || cabang || 'Semua cabang') + (cabang ? '<div class="redup kecil">' + esc(cabang) + '</div>' : '') + '</td><td>' + esc(p.barcode || '-') + '</td><td>' + rp(harga) + '</td>' +
-          '<td><span class="lencana' + ((Number(p.stok) || 0) <= 5 ? ' merah' : '') + '">' + (Number(p.stok) || 0) + '</span></td><td>' + esc(p.lokasi_rak || '-') + '</td>' +
-          '<td style="text-align:right;white-space:nowrap"><button class="tautan" data-stok="' + esc(id) + '" data-cabang="' + esc(cabang) + '">Atur stok</button> <button class="tautan" data-edit="' + esc(id) + '">Ubah master</button></td></tr>';
-      }).join('') || '<tr><td colspan="8" class="kosong">Belum ada produk pada filter cabang ini.</td></tr>') + '</tbody>';
+    $('#tabelProduk').innerHTML = list.length ? list.map(function (p) {
+      var id = String(p.id_barang || p.id || ''), nama = p.nama_barang || p.nama || '';
+      var cabang = String(p.id_cabang || (owner ? '' : cabangKatalogAktif));
+      var harga = Number(p.harga_jual || (p.varian && p.varian[0] ? p.varian[0].harga : 0)) || 0;
+      var stok = Number(p.stok) || 0;
+      var foto = p.foto ? '<img class="katalog-admin-foto" src="' + esc(p.foto) + '" alt="" loading="lazy">' :
+        '<span class="katalog-admin-inisial" aria-hidden="true">' + esc((nama.trim().charAt(0) || 'P').toUpperCase()) + '</span>';
+      return '<article class="katalog-admin-kartu">' +
+        '<div class="katalog-admin-visual">' + foto + '<span class="lencana' + (stok <= 5 ? ' merah' : '') + '">' + stok + ' stok</span></div>' +
+        '<div class="katalog-admin-info"><div class="katalog-admin-judul">' + esc(nama) + '</div>' +
+        '<div class="redup kecil">' + esc(id) + (p.kategori ? ' · ' + esc(p.kategori) : '') + '</div>' +
+        '<div class="katalog-admin-harga">' + rp(harga) + '</div>' +
+        '<div class="katalog-admin-meta">' + esc(p.nama_cabang || cabang || 'Semua cabang') + '</div>' +
+        '<div class="katalog-admin-meta">Barcode: ' + esc(p.barcode || '-') + ' · Rak: ' + esc(p.lokasi_rak || '-') + '</div></div>' +
+        '<div class="katalog-admin-aksi"><button class="tombol" type="button" data-stok="' + esc(id) + '" data-cabang="' + esc(cabang) + '">Atur stok</button>' +
+        '<button class="tombol utama" type="button" data-edit="' + esc(id) + '">Ubah master</button></div></article>';
+    }).join('') : '<div class="kosong katalog-admin-kosong"><b>Belum ada produk</b><span>Produk tidak ditemukan pada pencarian atau filter cabang ini.</span></div>';
   }
   function formProduk(p) {
     var baru = !p;
