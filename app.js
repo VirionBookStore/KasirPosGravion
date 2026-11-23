@@ -963,8 +963,10 @@
     var owner = !!(pengguna && pengguna.peran === 'owner');
     var rows = Array.isArray(dataKatalogServer) ? dataKatalogServer : [];
     if (owner && filterKatalogOwner !== 'SEMUA') rows = rows.filter(function (x) { return String(x.id_cabang || '') === String(filterKatalogOwner); });
+    var kataCari = q.split(/\\s+/).filter(Boolean);
     var list = rows.filter(function (p) {
-      return [p.nama_barang || p.nama || '', p.id_barang || p.id || '', p.barcode || '', p.id_cabang || '', p.nama_cabang || ''].join(' ').toLowerCase().indexOf(q) > -1;
+      var target = [p.nama_barang || p.nama || '', p.id_barang || p.id || '', p.barcode || '', p.id_cabang || '', p.nama_cabang || '', p.kategori || '', p.lokasi_rak || ''].join(' ').toLowerCase();
+      return !kataCari.length || kataCari.every(function (kata) { return target.indexOf(kata) > -1; });
     });
     $('#tabelProduk').innerHTML = '<thead><tr><th>Produk</th><th>Kategori</th><th>Cabang</th><th>Barcode</th><th>Harga</th><th>Stok</th><th>Rak</th><th></th></tr></thead><tbody>' +
       (list.map(function (p) {
