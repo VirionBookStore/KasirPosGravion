@@ -909,8 +909,8 @@
       head.parentNode.insertBefore(sel, head);
       sel.onchange = function () {
         filterKatalogOwner = sel.value || 'SEMUA';
+        katalogVisibleCount = katalogPageSize;
         renderKelola();
-        muatKatalogServer(true).catch(tampilkanErrorKatalog);
       };
     }
     var opts = '<option value="SEMUA">Semua cabang</option>' + cabang.map(function (x) {
@@ -924,6 +924,8 @@
     if (!token) return Promise.reject(new Error('Sesi online tidak ditemukan. Login online kembali.'));
     var cacheScope = 'SEMUA';
     var cacheKey = 'catalog:v3:' + cacheScope;
+    daftarCabangKatalog = Array.isArray(D.cabang) ? D.cabang.slice() : [];
+    if (daftarCabangKatalog.length) siapkanPilihCabangKatalog(daftarCabangKatalog);
     var now = Date.now();
     // Data di memori/IndexedDB menjadi sumber pertama. Jangan panggil GAS lagi
     // setiap kali pengguna berpindah tab.
@@ -1207,10 +1209,12 @@
       if (pk.classList.contains('buka') && !pk.contains(e.target) && !e.target.closest('#fabKeranjang') && !e.target.closest('dialog')) pk.classList.remove('buka');
     });
 
-    $('#cariKelola').oninput = renderKelola;
+    $('#cariKelola').oninput = function () { katalogVisibleCount = katalogPageSize; renderKelola(); };
     $('#btnTambahProduk').onclick = function () { formProduk(null); };
     $('#btnKategori').onclick = formKategori;
     $('#tabelProduk').onclick = function (e) {
+      var more = e.target.closest('[data-muat-lagi]');
+      if (more) { katalogVisibleCount += katalogPageSize; renderKelola(); return; }
       var edit = e.target.closest('[data-edit-kartu]');
       if (!edit) return;
       var id = edit.dataset.editKartu, idCabang = edit.dataset.cabang;
