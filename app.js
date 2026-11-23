@@ -931,7 +931,7 @@
     // setiap kali pengguna berpindah tab.
     if (!paksa && dataKatalogServer.length) {
       renderKelola();
-      if (katalogLastFetchAt && now - katalogLastFetchAt < 5 * 60 * 1000) return Promise.resolve(dataKatalogServer);
+      if (!navigator.onLine || (katalogLastFetchAt && now - katalogLastFetchAt < 5 * 60 * 1000)) return Promise.resolve(dataKatalogServer);
       if (katalogFetchPromise) return katalogFetchPromise;
       return segarkanKatalogDariServer(token, cacheKey);
     }
@@ -946,8 +946,9 @@
           katalogLastFetchAt = savedAt;
           renderKelola();
           // Cache masih segar: tampilkan langsung tanpa menunggu GAS.
-          if (savedAt && Date.now() - savedAt < 5 * 60 * 1000) return dataKatalogServer;
+          if (!navigator.onLine || (savedAt && Date.now() - savedAt < 5 * 60 * 1000)) return dataKatalogServer;
         }
+        if (!navigator.onLine && dataKatalogServer.length) return dataKatalogServer;
         return segarkanKatalogDariServer(token, cacheKey);
       });
     }
@@ -969,6 +970,15 @@
           .then(function () { return dataKatalogServer; });
       }
       return dataKatalogServer;
+    }).catch(function (err) {
+      // Jika server gagal, jangan kosongkan katalog yang sudah tersedia secara lokal.
+      if (dataKatalogServer.length) {
+        console.warn('Refresh katalog gagal; menggunakan cache lokal:', err);
+        renderKelola();
+        toast('Katalog memakai data tersimpan. Sinkronisasi server akan dicoba lagi nanti.');
+        return dataKatalogServer;
+      }
+      throw err;
     }).finally(function () {
       sedangMuatKatalog = false;
       katalogFetchPromise = null;
