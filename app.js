@@ -970,7 +970,7 @@
     var owner = !!(pengguna && pengguna.peran === 'owner');
     var rows = Array.isArray(dataKatalogServer) ? dataKatalogServer : [];
     if (owner && filterKatalogOwner !== 'SEMUA') rows = rows.filter(function (x) { return String(x.id_cabang || '') === String(filterKatalogOwner); });
-    var kataCari = q.split(/\\s+/).filter(Boolean);
+    var kataCari = q.split(/\s+/).filter(Boolean);
     var list = rows.filter(function (p) {
       var target = [p.nama_barang || p.nama || '', p.id_barang || p.id || '', p.barcode || '', p.id_cabang || '', p.nama_cabang || '', p.kategori || '', p.lokasi_rak || ''].join(' ').toLowerCase();
       return !kataCari.length || kataCari.every(function (kata) { return target.indexOf(kata) > -1; });
@@ -982,7 +982,7 @@
       var harga = Number(p.harga_jual || (p.varian && p.varian[0] ? p.varian[0].harga : 0)) || 0;
       var stok = Number(p.stok) || 0;
       var foto = p.foto ? '<img class="katalog-admin-foto" src="' + esc(p.foto) + '" alt="" loading="lazy">' :
-        '<span class="katalog-admin-inisial" aria-hidden="true">' + esc((nama.trim().charAt(0) || 'P').toUpperCase()) + '</span>';
+        '<span class="katalog-admin-inisial" aria-hidden="true">' + esc((String(nama || '').trim().charAt(0) || 'P').toUpperCase()) + '</span>';
       return '<article class="katalog-admin-kartu">' +
         '<div class="katalog-admin-visual">' + foto +
         '<button class="katalog-admin-edit" type="button" data-edit-kartu="' + esc(id) + '" data-cabang="' + esc(cabang) + '" aria-label="Edit ' + esc(nama) + '" title="Edit produk">✎</button></div>' +
