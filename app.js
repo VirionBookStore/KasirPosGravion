@@ -989,22 +989,20 @@
     var input = $('#cariKelola');
     var q = String(input && input.value || '').toLowerCase().trim();
     var owner = !!(pengguna && pengguna.peran === 'owner');
+    var selectedBranch = owner ? String(filterKatalogOwner || 'SEMUA') : String((pengguna && pengguna.id_cabang) || D.id_cabang_aktif || '');
+    // Penting: kelompokkan dari SEMUA data dahulu. Jangan buang cabang lain
+    // sebelum memutuskan apakah suatu barang benar-benar kosong di seluruh cabang.
     var rows = Array.isArray(dataKatalogServer) ? dataKatalogServer : [];
-    if (owner && filterKatalogOwner !== 'SEMUA') rows = rows.filter(function (x) { return String(x.id_cabang || '') === String(filterKatalogOwner); });
     var kataCari = q.split(/\\s+/).filter(Boolean);
     var cocok = rows.filter(function (p) {
       var target = [p.nama_barang || p.nama || '', p.id_barang || p.id || '', p.barcode || '', p.id_cabang || '', p.nama_cabang || '', p.kategori || '', p.lokasi_rak || ''].join(' ').toLowerCase();
       return (!kataCari.length || kataCari.every(function (kata) { return target.indexOf(kata) > -1; })) && String(p.id_barang || p.id || '').trim() !== '';
     });
-
-    // Kelompokkan per barang. Hanya pasangan barang+cabang dengan stok positif
-    // yang ditampilkan. Jika stok kosong di semua cabang, tampilkan satu kartu abu-abu.
     var grup = Object.create(null), urutan = [];
     cocok.forEach(function (p) {
       var id = String(p.id_barang || p.id || '').trim();
       if (!grup[id]) { grup[id] = []; urutan.push(id); }
-      var cabang = String(p.id_cabang || '').trim();
-      var key = id + '|' + cabang;
+      var cabang = String(p.id_cabang || '').trim(), key = id + '|' + cabang;
       if (!grup[id]._seen) grup[id]._seen = Object.create(null);
       if (grup[id]._seen[key]) return;
       grup[id]._seen[key] = true;
@@ -1013,28 +1011,28 @@
     var list = [];
     urutan.forEach(function (id) {
       var item = grup[id];
-      var tersedia = item.filter(function (p) { return Number(p.stok || 0) > 0 && String(p.id_cabang || '').trim(); });
-      if (tersedia.length) {
-        tersedia.forEach(function (p) { list.push({ data:p, kosong:false }); });
+      var tersediaSemua = item.filter(function (p) { return Number(p.stok || 0) > 0 && String(p.id_cabang || '').trim(); });
+      if (tersediaSemua.length) {
+        if (selectedBranch === 'SEMUA') {
+          tersediaSemua.forEach(function (p) { list.push({ data:p, kosong:false }); });
+        } else {
+          var tersediaTerpilih = tersediaSemua.filter(function (p) { return String(p.id_cabang || '') === selectedBranch; });
+          tersediaTerpilih.forEach(function (p) { list.push({ data:p, kosong:false }); });
+          // Bila barang ada stok di cabang lain, tetapi tidak di cabang pilihan,
+          // jangan tampilkan sebagai barang kosong pada cabang pilihan.
+        }
       } else if (item.length) {
+        // Hanya benar-benar kosong di SEMUA cabang: satu kartu abu-abu.
         list.push({ data:item[0], kosong:true });
       }
-    });
-
-    // Dahulukan produk yang memiliki stok pada cabang terpilih.
-    list.sort(function (a, b) {
-      var stokA = Number(a.data.stok || 0) > 0 && !a.kosong ? 1 : 0;
-      var stokB = Number(b.data.stok || 0) > 0 && !b.kosong ? 1 : 0;
-      return stokB - stokA;
     });
     var tampil = list.slice(0, katalogVisibleCount);
     $('#tabelProduk').innerHTML = tampil.length ? tampil.map(function (entry) {
       var p = entry.data, kosong = entry.kosong;
       var id = String(p.id_barang || p.id || ''), nama = String(p.nama_barang || p.nama || '');
       var cabang = String(p.id_cabang || '');
-      var namaCabang = kosong ? 'Belum tersedia di cabang' : String(p.nama_cabang || cabang || 'Cabang');
-      var harga = Number(p.harga_jual || 0) || 0;
-      var stok = kosong ? 0 : (Number(p.stok) || 0);
+      var namaCabang = kosong ? 'Stok kosong di semua cabang' : String(p.nama_cabang || cabang || 'Cabang');
+      var harga = Number(p.harga_jual || 0) || 0, stok = kosong ? 0 : (Number(p.stok) || 0);
       var foto = p.foto ? '<img class="katalog-admin-foto' + (kosong ? ' katalog-foto-kosong' : '') + '" src="' + esc(String(p.foto)) + '" alt="" loading="lazy">' :
         '<span class="katalog-admin-inisial' + (kosong ? ' katalog-foto-kosong' : '') + '" aria-hidden="true">' + esc((nama.trim().charAt(0) || 'P').toUpperCase()) + '</span>';
       return '<article class="katalog-admin-kartu' + (kosong ? ' stok-kosong' : '') + '">' +
@@ -1045,7 +1043,7 @@
         '<div class="katalog-admin-meta"><b>Stok:</b> ' + stok + '</div>' +
         '<div class="katalog-admin-meta"><b>Lokasi rak:</b> ' + esc(String(kosong ? '-' : (p.lokasi_rak || '-'))) + '</div>' +
         '<div class="katalog-admin-harga">' + rp(harga) + '</div></div></article>';
-    }).join('') : '<div class="kosong katalog-admin-kosong"><b>Belum ada produk</b><span>Produk tidak ditemukan pada pencarian atau filter cabang ini.</span></div>';
+    }).join('') : '<div class="kosong katalog-admin-kosong"><b>Belum ada produk</b><span>Tidak ada barang dengan stok pada cabang yang dipilih.</span></div>';
     if (list.length > tampil.length) {
       $('#tabelProduk').insertAdjacentHTML('beforeend', '<button type="button" class="tombol katalog-muat-lagi" data-muat-lagi>tampilkan ' + Math.min(katalogPageSize, list.length - tampil.length) + ' produk berikutnya (' + tampil.length + '/' + list.length + ')</button>');
     }
