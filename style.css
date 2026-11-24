@@ -768,3 +768,8 @@ html.mode-pilih [data-pilih-hover]{outline:2px solid #f43f5e!important;outline-o
 .pos-scan-btn:active{transform:scale(.96)}
 .pos-scan-btn:focus-visible{outline:3px solid var(--tema-aksen);outline-offset:2px}
 @media(max-width:700px){.pos-scan-btn{flex:0 0 44px;width:44px;height:42px}}
+
+/* Indikator perpindahan cabang ringkas tanpa teks loading. */
+.kasir-muat-ringkas{grid-column:1/-1;min-height:72px;display:grid;place-items:center}
+.kasir-muat-ringkas:after{content:"";width:17px;height:17px;border:2px solid var(--garis-kuat);border-top-color:var(--utama);border-radius:50%;animation:kasirPutarRingkas .7s linear infinite}
+@keyframes kasirPutarRingkas{to{transform:rotate(360deg)}}
