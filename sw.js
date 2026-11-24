@@ -2,9 +2,9 @@
  * Cache hanya aset same-origin. Request GAS/JSONP tidak pernah disimpan,
  * karena URL callback berubah pada setiap permintaan.
  */
-var CACHE = 'kasir-umkm-v26';
+var CACHE = 'kasir-umkm-v27';
 var BERKAS = [
-  './', './index.html', './style.css', './app.js', './storage.js',
+  './', './index.html', './style.css?v=katalog-search-branch-inline-2', './app.js?v=pos-fast-indexeddb-1', './storage.js',
   './api.js', './manifest.webmanifest', './ikon.svg', './qris.svg',
   './tema.css', './tema.js', './img/logo.svg', './img/produk-contoh.svg'
 ];
@@ -21,7 +21,7 @@ self.addEventListener('activate', function (e) {
   e.waitUntil(
     caches.keys()
       .then(function (ks) {
-        return Promise.all(ks.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+        return Promise.all(ks.filter(function (k) { return k.indexOf('kasir-umkm-') === 0 && k !== CACHE; }).map(function (k) { return caches.delete(k); }));
       })
       .then(function () { return self.clients.claim(); })
   );
@@ -52,7 +52,7 @@ self.addEventListener('fetch', function (e) {
         }
         return res;
       }).catch(function () {
-        return caches.match(req).then(function (hit) {
+        return caches.match(req, { ignoreSearch: false }).then(function (hit) {
           return hit || caches.match('./index.html');
         });
       })
