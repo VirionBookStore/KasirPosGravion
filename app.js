@@ -738,25 +738,61 @@
       }
     };
   }
+  function terapkanBarangCabangLokal(idCabang, rows) {
+    if (!Array.isArray(rows)) return false;
+    var cabangRows = rows.filter(function (x) { return String(x.id_cabang || '') === String(idCabang); });
+    if (!cabangRows.length) return false;
+    D.produk = cabangRows.map(barangDariServer);
+    sumberProdukPOS = null;
+    D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
+    D.id_cabang_aktif = String(idCabang);
+    cabangTransaksiAktif = String(idCabang);
+    try { localStorage.setItem('kpg-cabang-transaksi-owner', cabangTransaksiAktif); } catch (e) {}
+    var pilihCabang = $('#pilihCabangTransaksi');
+    if (pilihCabang) pilihCabang.value = idCabang;
+    if (!D.stokPerCabang) D.stokPerCabang = {};
+    D.stokPerCabang[String(idCabang)] = {};
+    D.produk.forEach(function (p) {
+      D.stokPerCabang[String(idCabang)][String(p.id)] = Number(p.stok) || 0;
+    });
+    produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
+    renderPOS();
+    simpan().catch(function (e) { console.warn('Snapshot cabang belum tersimpan:', e); });
+    return true;
+  }
   function muatBarangUntukCabang(idCabang) {
     var token = tokenAktif();
-    return KPGApi.call('listBarang', { token: token, id_cabang: idCabang }).then(function (r) {
+    var cachePromise = dataKatalogServer.length
+      ? Promise.resolve(dataKatalogServer)
+      : (window.KPGStorage && KPGStorage.getMeta
+        ? KPGStorage.getMeta('catalog:v3:SEMUA').then(function (cached) {
+            return Array.isArray(cached) ? cached : (cached && Array.isArray(cached.data) ? cached.data : []);
+          }).catch(function () { return []; })
+        : Promise.resolve([]));
+    // Pakai katalog semua cabang yang sudah ada di memori/IndexedDB terlebih dahulu.
+    // Dengan begitu pergantian cabang tidak perlu menunggu round-trip GAS untuk menggambar kasir.
+    return cachePromise.then(function (rows) {
+      if (rows.length) {
+        dataKatalogServer = rows;
+        terapkanBarangCabangLokal(idCabang, rows);
+      }
+      return KPGApi.call('listBarang', { token: token, id_cabang: idCabang });
+    }).then(function (r) {
       if (!Array.isArray(r.data)) throw new Error('Respons stok cabang tidak valid.');
       D.produk = r.data.map(barangDariServer);
       sumberProdukPOS = null;
       D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
-      D.id_cabang_aktif = idCabang;
+      D.id_cabang_aktif = String(idCabang);
       cabangTransaksiAktif = String(idCabang);
       try { localStorage.setItem('kpg-cabang-transaksi-owner', cabangTransaksiAktif); } catch (e) {}
       var pilihCabang = $('#pilihCabangTransaksi');
       if (pilihCabang) pilihCabang.value = idCabang;
-      // Simpan snapshot stok cabang terpilih secara terpisah agar perubahan lokal
-      // tidak tercampur dengan stok agregat OWNER atau cabang lain.
       if (!D.stokPerCabang) D.stokPerCabang = {};
       D.stokPerCabang[String(idCabang)] = {};
       D.produk.forEach(function (p) {
         D.stokPerCabang[String(idCabang)][String(p.id)] = Number(p.stok) || 0;
       });
+      produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
       renderPOS();
       return simpan().then(function () { return D.produk; });
     });
@@ -1200,6 +1236,13 @@
         // Hanya benar-benar kosong di SEMUA cabang: satu kartu abu-abu.
         list.push({ data:item[0], kosong:true });
       }
+    });
+    // Barang dengan stok tersedia selalu di atas; stok 0 diletakkan paling bawah.
+    list.sort(function (a, b) {
+      var stokA = a.kosong ? 0 : (Number(a.data.stok) || 0);
+      var stokB = b.kosong ? 0 : (Number(b.data.stok) || 0);
+      if (stokA !== stokB) return stokB - stokA;
+      return String(a.data.nama_barang || a.data.nama || '').localeCompare(String(b.data.nama_barang || b.data.nama || ''), 'id');
     });
     var tampil = list.slice(0, katalogVisibleCount);
     $('#tabelProduk').innerHTML = tampil.length ? tampil.map(function (entry) {
