@@ -653,9 +653,9 @@
   function stokTerpakai(pid) { return keranjang.filter(function (i) { return i.pid === pid; }).reduce(function (s, i) { return s + i.qty; }, 0); }
 
   function renderPOS() {
-    if (statusCabangKasir) {
+    if (tampilkanLoaderCabangKasir) {
       $('#chipKategori').innerHTML = '';
-      $('#gridProduk').innerHTML = '<div class="kosong"><b>' + esc(statusCabangKasir) + '</b><span>Data cabang sebelumnya disembunyikan agar tidak tertukar.</span></div>';
+      $('#gridProduk').innerHTML = '<div class="kasir-muat-ringkas" aria-label="Memuat produk"></div>';
       renderKeranjang();
       return;
     }
@@ -725,7 +725,7 @@
 
   var nomorPermintaanCabangKasir = 0;
   var timerPilihCabangKasir = null;
-  var statusCabangKasir = '';
+  var tampilkanLoaderCabangKasir = false;
   var sedangMuatCabangKasir = false;
   var cabangTransaksiAktif = '';
   var daftarCabangTransaksi = [];
@@ -746,26 +746,29 @@
       var requestId = ++nomorPermintaanCabangKasir;
       if (timerPilihCabangKasir) clearTimeout(timerPilihCabangKasir);
       cabangTransaksiAktif = id;
-      statusCabangKasir = 'Memuat stok cabang…';
-      renderPOS();
+      tampilkanLoaderCabangKasir = true;
       if (id) {
         try { localStorage.setItem('kpg-cabang-transaksi-owner', id); } catch (e) {}
-        // Hanya tampilkan snapshot yang benar-benar milik cabang yang dipilih.
-        // Jika tidak ada cache cabang itu, jangan biarkan produk cabang lama terlihat.
-        if (dataKatalogServer.length) {
-          if (terapkanBarangCabangLokal(id, dataKatalogServer)) statusCabangKasir = 'Memperbarui stok cabang…';
+        // Cache cabang terpilih langsung ditampilkan jika tersedia.
+        if (dataKatalogServer.length && terapkanBarangCabangLokal(id, dataKatalogServer)) {
+          tampilkanLoaderCabangKasir = false;
+        } else {
+          D.produk = [];
+          sumberProdukPOS = null;
+          D.kategori = [];
+          renderPOS();
         }
       } else {
         try { localStorage.removeItem('kpg-cabang-transaksi-owner'); } catch (e) {}
+        renderPOS();
       }
-      renderPOS();
       // Debounce singkat: hanya pilihan terakhir yang dikirim ke GAS.
       timerPilihCabangKasir = setTimeout(function () {
         if (requestId !== nomorPermintaanCabangKasir) return;
         var proses = id ? muatBarangUntukCabang(id, requestId) : muatSemuaBarangOwner(requestId);
         proses.catch(function (e) {
           if (requestId === nomorPermintaanCabangKasir) {
-            statusCabangKasir = '';
+            tampilkanLoaderCabangKasir = false;
             renderPOS();
             toast((id ? 'Gagal memuat cabang: ' : 'Gagal memuat seluruh cabang: ') + e.message);
           }
@@ -791,6 +794,7 @@
       D.stokPerCabang[String(idCabang)][String(p.id)] = Number(p.stok) || 0;
     });
     produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
+    tampilkanLoaderCabangKasir = false;
     renderPOS();
     simpan().catch(function (e) { console.warn('Snapshot cabang belum tersimpan:', e); });
     return true;
@@ -832,13 +836,13 @@
         D.stokPerCabang[String(idCabang)][String(p.id)] = Number(p.stok) || 0;
       });
       produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
-      statusCabangKasir = '';
+      tampilkanLoaderCabangKasir = false;
       sedangMuatCabangKasir = false;
       renderPOS();
       return simpan().then(function () { return D.produk; });
     }).catch(function (err) {
       if (requestId === nomorPermintaanCabangKasir) {
-        statusCabangKasir = '';
+        tampilkanLoaderCabangKasir = false;
         sedangMuatCabangKasir = false;
         renderPOS();
       }
@@ -880,13 +884,13 @@
       D.id_cabang_aktif = '';
       cabangTransaksiAktif = '';
       siapkanPilihCabangTransaksi();
-      statusCabangKasir = '';
+      tampilkanLoaderCabangKasir = false;
       sedangMuatCabangKasir = false;
       renderPOS();
       return simpan().then(function () { return D.produk; });
     }).catch(function (err) {
       if (requestId === nomorPermintaanCabangKasir) {
-        statusCabangKasir = '';
+        tampilkanLoaderCabangKasir = false;
         sedangMuatCabangKasir = false;
         renderPOS();
       }
