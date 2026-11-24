@@ -561,9 +561,11 @@
       }, Promise.resolve());
     var activeUserId = '';
     try { var activeUser = JSON.parse(localStorage.getItem('kpg-user') || 'null'); activeUserId = activeUser && activeUser.id_user || ''; } catch (e) {}
+    var adaAntreanSync = false;
     repair.then(function () { return KPGStorage.listOutbox(100); }).then(function (queue) {
       // Jangan kirim transaksi kasir lain dengan token pengguna yang sedang aktif.
       queue = queue.filter(function (item) { return !!activeUserId && item.owner_user_id === activeUserId; });
+      adaAntreanSync = queue.length > 0;
       return queue.reduce(function (chain, item) {
         return chain.then(function () {
           return KPGApi.call('syncPush', { token: token, transaksi: [item.payload] }).then(function (result) {
@@ -582,6 +584,7 @@
         });
       }, Promise.resolve());
     }).then(function () {
+      if (!adaAntreanSync) return;
       // Setelah server mengonfirmasi antrean, ambil stok terbaru dari cabang server.
       // Jangan memuat ulang sebelum syncPush selesai karena hasilnya bisa masih stok lama.
       if (!navigator.onLine) return;
@@ -607,12 +610,18 @@
     $$('.nav').forEach(function (b) { b.classList.toggle('aktif', b.dataset.hal === hal); });
     ({ kasir: function () {
         if (pengguna && pengguna.peran === 'owner') {
-          if (produkKasirCache) { D.produk = produkKasirCache.map(function (p) { return Object.assign({}, p); }); renderPOS(); }
-          var muatAktif = cabangTransaksiAktif
-            ? muatBarangUntukCabang(cabangTransaksiAktif)
-            : muatSemuaBarangOwner();
-          muatAktif.then(function () { produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); }); })
-            .catch(function (e) { if (!produkKasirCache) toast('Gagal memuat stok cabang: ' + e.message); });
+          if (produkKasirCache) { D.produk = produkKasirCache.map(function (p) { return Object.assign({}, p); }); sumberProdukPOS = null; renderPOS(); }
+          // Hindari meminta ulang seluruh katalog setiap kali tab kasir dibuka.
+          // Cache lokal ditampilkan langsung; refresh GAS dilakukan maksimal sekali per 60 detik.
+          if (!produkKasirCache || Date.now() - waktuMuatKasirTerakhir > 60000) {
+            var muatAktif = cabangTransaksiAktif
+              ? muatBarangUntukCabang(cabangTransaksiAktif)
+              : muatSemuaBarangOwner();
+            muatAktif.then(function () {
+              produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
+              waktuMuatKasirTerakhir = Date.now();
+            }).catch(function (e) { if (!produkKasirCache) toast('Gagal memuat stok cabang: ' + e.message); });
+          }
         } else renderPOS();
       }, produk: function () {
         if (pengguna && pengguna.peran === 'owner') produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
@@ -624,20 +633,35 @@
   var keranjang = [], katAktif = 'Semua';
   var produkKasirCache = null;
   var jumlahProdukTampil = 80;
+  var sumberProdukPOS = null, indeksProdukPOS = [], jumlahKategoriPOS = {};
+  var timerCariProduk = null, waktuMuatKasirTerakhir = 0;
+  function siapkanIndeksProdukPOS() {
+    if (sumberProdukPOS === D.produk) return;
+    sumberProdukPOS = D.produk;
+    indeksProdukPOS = [];
+    jumlahKategoriPOS = {};
+    D.produk.forEach(function (p) {
+      var teks = [p.nama, p.id, p.kode_barang, p.barcode, p.id_cabang, p.nama_cabang, p.lokasi_rak].join(' ').toLowerCase();
+      indeksProdukPOS.push({ produk: p, teks: teks });
+      var kategori = p.kategori || '';
+      jumlahKategoriPOS[kategori] = (jumlahKategoriPOS[kategori] || 0) + 1;
+    });
+  }
   function stokTerpakai(pid) { return keranjang.filter(function (i) { return i.pid === pid; }).reduce(function (s, i) { return s + i.qty; }, 0); }
 
   function renderPOS() {
+    siapkanIndeksProdukPOS();
     var kats = ['Semua'].concat(D.kategori);
-    $('#chipKategori').innerHTML = kats.map(function (k) { var n = k === 'Semua' ? D.produk.length : D.produk.filter(function (p) { return p.kategori === k; }).length;
+    $('#chipKategori').innerHTML = kats.map(function (k) { var n = k === 'Semua' ? D.produk.length : (jumlahKategoriPOS[k] || 0);
       return '<button class="chip' + (k === katAktif ? ' aktif' : '') + '" data-k="' + esc(k) + '" aria-pressed="' + (k === katAktif) + '">' + esc(k) + '<span class="chip-n">' + n + '</span></button>'; }).join('');
     var q = $('#cariProduk').value.trim().toLowerCase();
     var kataCari = q.split(/\s+/).filter(Boolean);
-    var list = D.produk.filter(function (p) {
-      var target = [p.nama,p.id,p.kode_barang,p.barcode,p.id_cabang,p.nama_cabang,p.lokasi_rak].join(' ').toLowerCase();
-      var cocok = !kataCari.length || kataCari.every(function (kata) { return target.indexOf(kata) > -1; });
+    var list = indeksProdukPOS.filter(function (item) {
+      var p = item.produk;
+      var cocok = !kataCari.length || kataCari.every(function (kata) { return item.teks.indexOf(kata) > -1; });
       var stokAda = Number(p.stok || 0) > 0;
       return stokAda && (katAktif === 'Semua' || p.kategori === katAktif) && cocok;
-    });
+    }).map(function (item) { return item.produk; });
     var tampil = list.slice(0, jumlahProdukTampil);
     $('#gridProduk').innerHTML = list.length ? tampil.map(function (p, n) {
       var sisa = p.stok - stokTerpakai(p.id), diKer = stokTerpakai(p.id);
@@ -719,6 +743,7 @@
     return KPGApi.call('listBarang', { token: token, id_cabang: idCabang }).then(function (r) {
       if (!Array.isArray(r.data)) throw new Error('Respons stok cabang tidak valid.');
       D.produk = r.data.map(barangDariServer);
+      sumberProdukPOS = null;
       D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
       D.id_cabang_aktif = idCabang;
       cabangTransaksiAktif = String(idCabang);
@@ -733,7 +758,7 @@
         D.stokPerCabang[String(idCabang)][String(p.id)] = Number(p.stok) || 0;
       });
       renderPOS();
-      return D.produk;
+      return simpan().then(function () { return D.produk; });
     });
   }
   function muatSemuaBarangOwner() {
@@ -763,12 +788,13 @@
         p.cabang_stok_label = src ? src.cabang_stok_label : '';
         return p;
       });
+      sumberProdukPOS = null;
       D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
       D.id_cabang_aktif = '';
       cabangTransaksiAktif = '';
       siapkanPilihCabangTransaksi();
       renderPOS();
-      return D.produk;
+      return simpan().then(function () { return D.produk; });
     });
   }
   function mintaCabangOwner() {
@@ -1438,8 +1464,13 @@
     };
     $('#formLoginOnline').onsubmit = loginOnline;
     if (window.addEventListener) window.addEventListener('online', syncPending);
+    // Coba ulang antrean tertunda berkala selama aplikasi masih terbuka.
+    if (!window.__kpgRetryTimer) window.__kpgRetryTimer = setInterval(syncPending, 60000);
 
-    $('#cariProduk').oninput = renderPOS;
+    $('#cariProduk').oninput = function () {
+      if (timerCariProduk) clearTimeout(timerCariProduk);
+      timerCariProduk = setTimeout(function () { timerCariProduk = null; renderPOS(); }, 130);
+    };
     document.addEventListener('keydown', tangkapScannerKasir, true);
     $('#btnScanKasir').onclick = bukaScannerKasir;
     $('#chipKategori').onclick = function (e) { var c = e.target.closest('.chip'); if (c) { katAktif = c.dataset.k; renderPOS(); } };
