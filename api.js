@@ -1,15 +1,33 @@
-/* Kasir POS Gravion — koneksi aman ke Google Apps Script. */
+/* Kasir POS Gravion — koneksi aman ke Google Apps Script (v1.2.1). */
 (function () {
   'use strict';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyBrSwEFYQvfCbyHhJBl8ko4c1VW-JowhThdkMyHbubeu2-YPrAT9Bcg9lUAdKQJQZl/exec';
   var sequence = 0;
 
+  // Daftar action mutasi yang wajib membawa client_id idempotensi di GAS v1.2.1
+  var MUTATION_ACTIONS = {
+    saveStokCabang: true,
+    stokMasuk: true,
+    returBarang: true,
+    transferStok: true,
+    koreksiStok: true,
+    batalkanTransaksi: true,
+    importStokCabangBatch: true
+  };
+
+  function buatClientId(prefix) {
+    return (prefix || 'KPG') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  }
+
   function jsonp(action, params) {
-    params = params || {};
+    params = Object.assign({}, params || {});
+    if (MUTATION_ACTIONS[action] && !params.client_id) {
+      params.client_id = buatClientId('MUT');
+    }
+
     return new Promise(function (resolve, reject) {
       var cb = '__kpg_jsonp_' + Date.now() + '_' + (++sequence);
       var script = document.createElement('script');
-      var callbackReceived = false;
       var settled = false;
       var timer = setTimeout(function () {
         if (settled) return;
@@ -17,19 +35,25 @@
         cleanup();
         reject(new Error('GAS tidak merespons dalam 45 detik. Periksa deployment Web App dan koneksi internet.'));
       }, 45000);
+
       function cleanup() {
         clearTimeout(timer);
         try { delete window[cb]; } catch (e) { window[cb] = undefined; }
         if (script.parentNode) script.parentNode.removeChild(script);
       }
+
       window[cb] = function (result) {
         if (settled) return;
-        callbackReceived = true;
         settled = true;
         cleanup();
-        if (!result || result.ok !== true) reject(new Error(result && result.error || 'Permintaan ke GAS gagal.'));
-        else resolve(result);
+        // v1.2.1: duplicate: true berarti mutasi sudah tercatat sebelumnya (idempoten -> anggap sukses)
+        if (result && (result.ok === true || result.duplicate === true)) {
+          resolve(result);
+        } else {
+          reject(new Error((result && result.error) || 'Permintaan ke GAS gagal.'));
+        }
       };
+
       var query = new URLSearchParams();
       query.set('action', action);
       query.set('callback', cb);
@@ -38,6 +62,7 @@
         if (value === undefined || value === null) return;
         query.set(key, typeof value === 'string' ? value : JSON.stringify(value));
       });
+
       script.async = true;
       script.onerror = function () {
         if (settled) return;
@@ -45,9 +70,7 @@
         cleanup();
         reject(new Error('Browser gagal memuat respons GAS. Periksa akses Web App dan koneksi internet.'));
       };
-      // Jangan menganggap event onload sebagai bukti callback gagal.
-      // GAS ContentService dapat melewati redirect googleusercontent; tunggu callback
-      // JSONP yang sebenarnya. Timeout 15 detik di atas tetap menangani respons macet.
+
       script.src = API_URL + '?' + query.toString();
       document.head.appendChild(script);
     });
@@ -99,6 +122,7 @@
   window.KPGApi = {
     url: API_URL,
     call: jsonp,
+    makeClientId: buatClientId,
     login: login,
     createOfflinePin: buatPin,
     verifyOfflinePin: verifikasiPin
