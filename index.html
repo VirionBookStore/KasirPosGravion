@@ -181,6 +181,17 @@
         </div>
         <p class="redup kecil">Format CSV produk: nama,kategori,stok,varian (varian ditulis <code>Reguler:15000|Large:20000</code>). Data utama disimpan lokal agar kasir tetap cepat; transaksi yang menunggu akan dikirim ke GAS saat koneksi tersedia.</p>
       </div>
+
+      <div class="panel" id="panelAuditOwner" hidden>
+        <h3>Audit &amp; Integritas Database (Owner)</h3>
+        <p class="redup kecil">Gunakan fitur ini untuk mengunci saldo awal audit stok, memverifikasi kecocokan mutasi dengan stok aktif, serta memulihkan jurnal tertunda.</p>
+        <div class="aksi wrap">
+          <button class="tombol" type="button" id="btnAuditIntegritas">Cek Integritas Stok</button>
+          <button class="tombol" type="button" id="btnRecoverPending">Pulihkan Jurnal Tertunda</button>
+          <button class="tombol bahaya" type="button" id="btnSetBaseline">Set Baseline Stok</button>
+        </div>
+        <div id="hasilAuditOwner" class="redup kecil" style="margin-top:12px"></div>
+      </div>
     </section>
   </main>
 
@@ -195,8 +206,7 @@
 <div id="toast" class="toast" role="status"></div>
 
 <script src="storage.js"></script>
-<script src="api.js"></script>
-<script src="app.js?v=instant-catalog-refresh-2"></script>
-  <p class="" style="margin:24px auto 112px;padding:0 16px;text-align:center;font:12px/1.5 system-ui,sans-serif;opacity:.7">Template oleh <a href="" target="_blank" rel="noopener" style="color:inherit"</a></p>
+<script src="api.js?v=1.2.1"></script>
+<script src="app.js?v=1.2.1"></script>
 </body>
 </html>
