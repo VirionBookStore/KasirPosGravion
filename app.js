@@ -1390,7 +1390,7 @@
         if (!baru) $('#fHapus', f).onclick = function () {
           if (!confirm('Tandai produk ' + p.nama + ' sebagai terhapus dari master?')) return;
           KPGApi.call('saveBarang', { token: tokenAktif(), id_barang: p.id, nama_barang: p.nama, kategori: p.kategori, barcode: p.barcode || '', kode_barang: p.kode_barang || '', satuan: p.satuan || 'pcs', harga_beli: p.harga_beli || 0, harga_jual: harga, foto: p.foto || '', status: 'HAPUS' })
-            .then(function () { tutupDialog(); return muatKatalogServer(); }).then(function () { toast('Produk dihapus dari master server.'); })
+            .then(function () { tutupDialog(); return muatKatalogServer(true); }).then(function () { if (pengguna && pengguna.peran === 'owner' && cabangTransaksiAktif) return muatBarangUntukCabang(cabangTransaksiAktif); }).then(function () { toast('Produk dihapus dari master server.'); })
             .catch(function (e) { toast('Gagal menghapus: ' + e.message); });
         };
         $('#fSimpan', f).onclick = function () {
@@ -1404,7 +1404,9 @@
           $('#fSimpan', f).disabled = true;
           KPGApi.call('saveBarang', payload).then(function () {
             tutupDialog();
-            return muatKatalogServer();
+            return muatKatalogServer(true).then(function () {
+              if (pengguna && pengguna.peran === 'owner' && cabangTransaksiAktif) return muatBarangUntukCabang(cabangTransaksiAktif);
+            });
           }).then(function () { toast('Master produk tersimpan di server.'); })
             .catch(function (e) { $('#fSimpan', f).disabled = false; toast('Gagal menyimpan: ' + e.message); });
         };
@@ -1421,6 +1423,7 @@
     if (rak === null) return;
     KPGApi.call('saveStokCabang', { token: tokenAktif(), id_cabang: idCabangStok, id_barang: p.id, stok: n, lokasi_rak: rak })
       .then(function () { return muatKatalogServer(true); })
+      .then(function () { if (pengguna && pengguna.peran === 'owner' && cabangTransaksiAktif) return muatBarangUntukCabang(cabangTransaksiAktif); })
       .then(function () { toast('Stok cabang berhasil disimpan di server.'); })
       .catch(function (e) { toast('Gagal menyimpan stok: ' + e.message); });
   }
@@ -1617,7 +1620,7 @@
 
     $('#cariProduk').oninput = function () {
       if (timerCariProduk) clearTimeout(timerCariProduk);
-      timerCariProduk = setTimeout(function () { timerCariProduk = null; renderPOS(); }, 130);
+      timerCariProduk = setTimeout(function () { timerCariProduk = null; renderPOS(); }, 60);
     };
     document.addEventListener('keydown', tangkapScannerKasir, true);
     $('#btnScanKasir').onclick = bukaScannerKasir;
