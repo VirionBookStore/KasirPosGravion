@@ -877,45 +877,71 @@
       throw err;
     });
   }
+  function terapkanSemuaBarangOwner(rows) {
+    if (!Array.isArray(rows)) return false;
+    var gabung = {};
+    D.stokPerCabang = D.stokPerCabang || {};
+    rows.forEach(function (x) {
+      var id = String(x.id_barang), idCab = String(x.id_cabang || '');
+      var stok = Number(x.stok) || 0;
+      if (idCab && id) {
+        D.stokPerCabang[idCab] = D.stokPerCabang[idCab] || {};
+        D.stokPerCabang[idCab][id] = stok;
+      }
+      if (!gabung[id]) gabung[id] = Object.assign({}, x, { stok: 0, id_cabang: '', nama_cabang: '', lokasi_rak: '', _cabang: [] });
+      gabung[id].stok += stok;
+      if (stok > 0) gabung[id]._cabang.push(String(x.nama_cabang || x.id_cabang || ''));
+    });
+    D.produk = Object.keys(gabung).map(function (id) {
+      var x = gabung[id];
+      x.cabang_stok_label = x._cabang.filter(Boolean).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(', ');
+      delete x._cabang;
+      return barangDariServer(x);
+    }).map(function (p) {
+      var src = gabung[p.id];
+      p.cabang_stok_label = src ? src.cabang_stok_label : '';
+      return p;
+    });
+    sumberProdukPOS = null;
+    D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
+    D.id_cabang_aktif = '';
+    cabangTransaksiAktif = '';
+    siapkanPilihCabangTransaksi();
+    produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
+    tampilkanLoaderCabangKasir = false;
+    renderPOS();
+    return true;
+  }
   function muatSemuaBarangOwner(requestId) {
     requestId = requestId == null ? ++nomorPermintaanCabangKasir : requestId;
     var token = tokenAktif();
     if (requestId === nomorPermintaanCabangKasir) sedangMuatCabangKasir = true;
-    return KPGApi.call('listBarang', { token: token, id_cabang: '' }).then(function (r) {
-      if (requestId !== nomorPermintaanCabangKasir) return D.produk;
+    var cachePromise = dataKatalogServer.length
+      ? Promise.resolve(dataKatalogServer)
+      : (window.KPGStorage && KPGStorage.getMeta
+        ? KPGStorage.getMeta('catalog:v3:SEMUA').then(function (cached) {
+            return Array.isArray(cached) ? cached : (cached && Array.isArray(cached.data) ? cached.data : []);
+          }).catch(function () { return []; })
+        : Promise.resolve([]));
+    return cachePromise.then(function (rows) {
+      if (requestId !== nomorPermintaanCabangKasir) return null;
+      if (rows.length) {
+        dataKatalogServer = rows;
+        terapkanSemuaBarangOwner(rows);
+      }
+      return KPGApi.call('listBarang', { token: token, id_cabang: '' });
+    }).then(function (r) {
+      if (requestId !== nomorPermintaanCabangKasir || r === null) return D.produk;
       if (!Array.isArray(r.data)) throw new Error('Data katalog seluruh cabang tidak valid.');
-      var gabung = {};
-      D.stokPerCabang = D.stokPerCabang || {};
-      r.data.forEach(function (x) {
-        var id = String(x.id_barang), idCab = String(x.id_cabang || '');
-        var stok = Number(x.stok) || 0;
-        if (idCab && id) {
-          D.stokPerCabang[idCab] = D.stokPerCabang[idCab] || {};
-          D.stokPerCabang[idCab][id] = stok;
-        }
-        if (!gabung[id]) gabung[id] = Object.assign({}, x, { stok: 0, id_cabang: '', nama_cabang: '', lokasi_rak: '', _cabang: [] });
-        gabung[id].stok += stok;
-        if (stok > 0) gabung[id]._cabang.push(String(x.nama_cabang || x.id_cabang || ''));
-      });
-      D.produk = Object.keys(gabung).map(function (id) {
-        var x = gabung[id];
-        x.cabang_stok_label = x._cabang.filter(Boolean).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(', ');
-        delete x._cabang;
-        return barangDariServer(x);
-      }).map(function (p, i) {
-        var src = gabung[p.id];
-        p.cabang_stok_label = src ? src.cabang_stok_label : '';
-        return p;
-      });
-      sumberProdukPOS = null;
-      D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
-      D.id_cabang_aktif = '';
-      cabangTransaksiAktif = '';
-      siapkanPilihCabangTransaksi();
-      tampilkanLoaderCabangKasir = false;
+      dataKatalogServer = r.data;
+      katalogLastFetchAt = Date.now();
+      terapkanSemuaBarangOwner(r.data);
       sedangMuatCabangKasir = false;
-      renderPOS();
-      return simpan().then(function () { return D.produk; });
+      return Promise.resolve(window.KPGStorage && KPGStorage.setMeta
+        ? KPGStorage.setMeta('catalog:v3:SEMUA', { data: dataKatalogServer, savedAt: katalogLastFetchAt }).catch(function (e) { console.warn('Cache katalog gagal disimpan:', e); })
+        : null).then(function () {
+          return simpan().then(function () { return D.produk; });
+        });
     }).catch(function (err) {
       if (requestId === nomorPermintaanCabangKasir) {
         tampilkanLoaderCabangKasir = false;
