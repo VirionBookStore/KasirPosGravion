@@ -741,6 +741,14 @@
     sel.onchange = function () {
       var id = String(sel.value || '');
       if (!(pengguna && pengguna.peran === 'owner')) return;
+      // Jangan izinkan keranjang dari cabang A dijual memakai stok cabang B.
+      // Pertahankan pilihan cabang sebelumnya sampai keranjang diselesaikan/dikosongkan.
+      var cabangSebelumnya = String(cabangTransaksiAktif || '');
+      if (keranjang.length && id !== cabangSebelumnya) {
+        sel.value = cabangSebelumnya;
+        toast('Selesaikan atau kosongkan keranjang sebelum pindah cabang.');
+        return;
+      }
       // Pilihan terbaru langsung menjadi sumber kebenaran. Respons request lama
       // tidak boleh mengubah dropdown, stok, atau katalog cabang yang sedang aktif.
       var requestId = ++nomorPermintaanCabangKasir;
@@ -1003,6 +1011,12 @@
   function selesaikan(metode, bayar) {
     var h = hitung(), w = new Date();
     if (pengguna && pengguna.peran === 'owner' && !cabangTransaksiAktif) return toast('Pilih cabang sebelum menyelesaikan transaksi.');
+    // Validasi ulang stok pada saat checkout, bukan hanya saat barang masuk keranjang.
+    var stokTidakCukup = keranjang.find(function (item) {
+      var produk = D.produk.find(function (p) { return String(p.id) === String(item.pid); });
+      return !produk || Number(produk.stok || 0) < Number(item.qty || 0);
+    });
+    if (stokTidakCukup) return toast('Stok ' + stokTidakCukup.nama + ' tidak cukup. Muat ulang stok cabang sebelum membayar.');
     D.nomor = (D.nomor || 0) + 1;
     var clientId = 'KPG-' + uid() + '-' + w.getTime();
     var trx = { id: noTrx(w, D.nomor), waktu: w.toISOString(), kasir: pengguna.nama, id_user: pengguna.id_user || '',
@@ -1011,14 +1025,21 @@
       client_id: clientId, id_cabang: (pengguna.peran === 'owner' ? cabangTransaksiAktif : (pengguna.id_cabang || D.id_cabang_aktif || '')),
       nama_cabang: (daftarCabangTransaksi.find(function (c) { return String(c.id_cabang) === String(pengguna.peran === 'owner' ? cabangTransaksiAktif : (pengguna.id_cabang || D.id_cabang_aktif || '')); }) || {}).nama_cabang || pengguna.nama_cabang || '',
       sync_status: 'MENUNGGU' };
-    var stokLokalCabang = D.stokPerCabang && D.stokPerCabang[trx.id_cabang];
+    if (!D.stokPerCabang) D.stokPerCabang = {};
+    if (trx.id_cabang && !D.stokPerCabang[trx.id_cabang]) D.stokPerCabang[trx.id_cabang] = {};
+    var stokLokalCabang = trx.id_cabang ? D.stokPerCabang[trx.id_cabang] : null;
     trx.items.forEach(function (i) {
-      var p = D.produk.find(function (x) { return x.id === i.pid; });
+      var p = D.produk.find(function (x) { return String(x.id) === String(i.pid); });
       if (p) {
-        p.stok = Math.max(0, p.stok - i.qty);
+        p.stok = Math.max(0, Number(p.stok || 0) - Number(i.qty || 0));
         if (stokLokalCabang) stokLokalCabang[p.id] = p.stok;
       }
     });
+    // Cache kasir harus ikut diperbarui; jika tidak, membuka tab Kasir kembali
+    // dapat mengembalikan angka stok lama setelah transaksi lokal.
+    if (pengguna && pengguna.peran === 'owner') {
+      produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
+    }
     D.transaksi.push(trx);
     var payload = {
       client_id: clientId, no_nota: trx.id, waktu: trx.waktu, id_cabang: trx.id_cabang,
