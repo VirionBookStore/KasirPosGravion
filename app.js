@@ -1753,8 +1753,7 @@
         catch (er) { toast('File backup tidak valid'); }
       });
     };
-    $('#btnEksporProduk').onclick = eksporProdukCSV;
-    $('#fileCsv').onchange = function () { bacaFile(this, function (t) { toast(imporProdukCSV(t) + ' produk diimpor'); }); };
+    
     $('#btnContoh').onclick = function () { if (confirm('Ganti data dengan data contoh?')) { D = dataContoh(); simpan(); tampilMasuk(); } };
     $('#btnReset').onclick = function () { if (confirm('Yakin hapus SEMUA data? Backup dulu ya.')) { D = dataKosong(); simpan(); toast('Data dikosongkan. PIN admin: 1234'); tampilMasuk(); } };
     
@@ -1803,6 +1802,123 @@
       }).catch(function (e) {
         box.textContent = 'Gagal set baseline: ' + e.message;
       }).finally(function () { btnBaseline.disabled = false; });
+    };
+    // --- Helper Baca File Excel (.xlsx / .xls / .csv) ---
+    function bacaExcelRows(inputEl, cb) {
+      var file = inputEl.files && inputEl.files[0];
+      if (!file) return;
+      if (typeof XLSX === 'undefined') {
+        toast('Library Excel belum termuat, periksa koneksi internet lalu refresh.');
+        inputEl.value = '';
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          var ws = wb.Sheets[wb.SheetNames[0]];
+          var rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+          cb(rows);
+        } catch (err) {
+          toast('Gagal membaca file Excel: ' + err.message);
+        } finally {
+          inputEl.value = '';
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // --- 1. Sinkronisasi Manual ---
+    var btnSyncManual = $('#btnSyncManual');
+    if (btnSyncManual) btnSyncManual.onclick = function () {
+      btnSyncManual.disabled = true;
+      toast('Menjalankan sinkronisasi manual...');
+      Promise.resolve()
+        .then(function () { return typeof syncPush === 'function' ? syncPush() : null; })
+        .then(function () { return typeof syncPull === 'function' ? syncPull(true) : null; })
+        .then(function () {
+          if (typeof produkKasirCache !== 'undefined') produkKasirCache = { cabang: '', waktu: 0, list: [] };
+          renderSemua();
+          toast('Sinkronisasi manual selesai.');
+        })
+        .catch(function (err) { toast('Gagal sinkronisasi: ' + err.message); })
+        .finally(function () { btnSyncManual.disabled = false; });
+    };
+
+    // --- 2. Update Data (Excel) ---
+    var boxExcel = $('#statusUpdateExcel');
+
+    var btnExportExcel = $('#btnExportBarangExcel');
+    if (btnExportExcel) btnExportExcel.onclick = function () {
+      if (typeof XLSX === 'undefined') return toast('Library Excel belum termuat.');
+      btnExportExcel.disabled = true;
+      if (boxExcel) boxExcel.textContent = 'Mengambil data barang dari server...';
+      KPGApi.call('exportBarangExcel', { token: tokenAktif() }).then(function (res) {
+        var rows = res.rows || [];
+        if (!rows.length) {
+          if (boxExcel) boxExcel.textContent = 'Tidak ada data barang di server.';
+          return;
+        }
+        var ws = XLSX.utils.json_to_sheet(rows);
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'barang');
+        XLSX.writeFile(wb, 'master-barang-' + new Date().toISOString().slice(0, 10) + '.xlsx');
+        if (boxExcel) boxExcel.innerHTML = '<b style="color:var(--utama)">✓ Berhasil export ' + rows.length + ' barang ke Excel.</b>';
+      }).catch(function (err) {
+        if (boxExcel) boxExcel.innerHTML = '<b style="color:#c0392b">Gagal export:</b> ' + esc(err.message);
+      }).finally(function () { btnExportExcel.disabled = false; });
+    };
+
+    var fileImportBaru = $('#fileImportBarangBaru');
+    if (fileImportBaru) fileImportBaru.onchange = function () {
+      bacaExcelRows(this, function (rows) {
+        if (!rows.length) return toast('File Excel kosong.');
+        if (!confirm('Import ' + rows.length + ' baris barang baru ke Google Sheets?')) return;
+        if (boxExcel) boxExcel.textContent = 'Mengunggah ' + rows.length + ' barang baru...';
+        KPGApi.call('importBarangBaru', { token: tokenAktif(), items: rows }).then(function (res) {
+          if (boxExcel) boxExcel.innerHTML = '<b style="color:var(--utama)">✓ Import Barang Selesai:</b> ' + res.inserted + ' barang ditambahkan, ' + res.skipped + ' dilewati (ID sudah ada/kosong).';
+        }).catch(function (err) {
+          if (boxExcel) boxExcel.innerHTML = '<b style="color:#c0392b">Gagal import barang:</b> ' + esc(err.message);
+        });
+      });
+    };
+
+    var fileImportUbah = $('#fileImportPerubahanBarang');
+    if (fileImportUbah) fileImportUbah.onchange = function () {
+      bacaExcelRows(this, function (rows) {
+        if (!rows.length) return toast('File Excel kosong.');
+        if (!rows[0].hasOwnProperty('id_barang')) return toast('Header wajib memiliki kolom id_barang.');
+        if (!confirm('Terapkan perubahan data pada ' + rows.length + ' baris barang?')) return;
+        if (boxExcel) boxExcel.textContent = 'Memperbarui data barang di server...';
+        KPGApi.call('importPerubahanBarang', { token: tokenAktif(), items: rows }).then(function (res) {
+          var infoNotFound = (res.notFound && res.notFound.length) ? ' (ID tidak ditemukan: ' + res.notFound.slice(0, 5).join(', ') + ')' : '';
+          if (boxExcel) boxExcel.innerHTML = '<b style="color:var(--utama)">✓ Update Barang Selesai:</b> ' + res.updated + ' barang diperbarui' + esc(infoNotFound) + '.';
+        }).catch(function (err) {
+          if (boxExcel) boxExcel.innerHTML = '<b style="color:#c0392b">Gagal update barang:</b> ' + esc(err.message);
+        });
+      });
+    };
+
+    var fileImportStok = $('#fileImportStokCabang');
+    if (fileImportStok) fileImportStok.onchange = function () {
+      bacaExcelRows(this, function (rows) {
+        if (!rows.length) return toast('File Excel kosong.');
+        if (!rows[0].hasOwnProperty('id_cabang') || !rows[0].hasOwnProperty('id_barang')) {
+          return toast('Header Excel wajib memiliki kolom id_cabang, id_barang, dan perubahan_stock.');
+        }
+        if (!confirm('Proses ' + rows.length + ' mutasi stok cabang (+ tambah / - kurang)?')) return;
+        if (boxExcel) boxExcel.textContent = 'Memproses perubahan stok cabang di server...';
+        KPGApi.call('importStokCabang', {
+          token: tokenAktif(),
+          batch_id: 'IMP-' + Date.now(),
+          items: rows
+        }).then(function (res) {
+          if (typeof produkKasirCache !== 'undefined') produkKasirCache = { cabang: '', waktu: 0, list: [] };
+          if (boxExcel) boxExcel.innerHTML = '<b style="color:var(--utama)">✓ Update Stock Cabang Selesai:</b> ' + res.processed + ' mutasi stok diproses & dicatat di jurnal.';
+        }).catch(function (err) {
+          if (boxExcel) boxExcel.innerHTML = '<b style="color:#c0392b">Gagal update stok cabang:</b> ' + esc(err.message);
+        });
+      });
     };
   }
 
