@@ -1,12 +1,22 @@
-/* Service worker KasirPosGravion.
+/* Service worker KasirPosGravion v1.2.1.
  * Cache hanya aset same-origin. Request GAS/JSONP tidak pernah disimpan,
  * karena URL callback berubah pada setiap permintaan.
  */
-var CACHE = 'kasir-umkm-v35';
+var CACHE = 'kasir-umkm-v36';
 var BERKAS = [
-  './', './index.html', './style.css?v=branch-instant-ui-6', './app.js?v=instant-catalog-refresh-2', './storage.js',
-  './api.js', './manifest.webmanifest', './ikon.svg', './qris.svg',
-  './tema.css', './tema.js', './img/logo.svg', './img/produk-contoh.svg'
+  './',
+  './index.html',
+  './style.css?v=branch-instant-ui-6',
+  './app.js?v=1.2.1',
+  './storage.js',
+  './api.js?v=1.2.1',
+  './manifest.webmanifest',
+  './ikon.svg',
+  './qris.svg',
+  './tema.css',
+  './tema.js',
+  './img/logo.svg',
+  './img/produk-contoh.svg'
 ];
 
 self.addEventListener('install', function (e) {
