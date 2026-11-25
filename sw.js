@@ -2,21 +2,22 @@
  * Cache hanya aset same-origin. Request GAS/JSONP tidak pernah disimpan,
  * karena URL callback berubah pada setiap permintaan.
  */
-var CACHE = 'kasir-umkm-v36';
+var CACHE = 'kasir-umkm-v37';
 var BERKAS = [
   './',
   './index.html',
   './style.css?v=branch-instant-ui-6',
-  './app.js?v=1.2.1',
+  './app.js?v=1.2.2',
   './storage.js',
-  './api.js?v=1.2.1',
+  './api.js?v=1.2.2',
   './manifest.webmanifest',
   './ikon.svg',
   './qris.svg',
   './tema.css',
   './tema.js',
   './img/logo.svg',
-  './img/produk-contoh.svg'
+  './img/produk-contoh.svg',
+  'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'
 ];
 
 self.addEventListener('install', function (e) {
