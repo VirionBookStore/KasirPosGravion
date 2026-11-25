@@ -2,9 +2,9 @@
  * Cache hanya aset same-origin. Request GAS/JSONP tidak pernah disimpan,
  * karena URL callback berubah pada setiap permintaan.
  */
-var CACHE = 'kasir-umkm-v34';
+var CACHE = 'kasir-umkm-v35';
 var BERKAS = [
-  './', './index.html', './style.css?v=branch-instant-ui-6', './app.js?v=pos-stock-guard-1', './storage.js',
+  './', './index.html', './style.css?v=branch-instant-ui-6', './app.js?v=instant-catalog-refresh-2', './storage.js',
   './api.js', './manifest.webmanifest', './ikon.svg', './qris.svg',
   './tema.css', './tema.js', './img/logo.svg', './img/produk-contoh.svg'
 ];
