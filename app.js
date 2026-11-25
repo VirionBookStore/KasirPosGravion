@@ -570,7 +570,7 @@
         return chain.then(function () {
           return KPGApi.call('syncPush', { token: token, transaksi: [item.payload] }).then(function (result) {
             var ack = (result.hasil || []).find(function (x) { return x.client_id === item.client_id; });
-            if (!ack || !ack.ok) throw new Error(ack && ack.error || 'Transaksi belum diterima server.');
+            if (!ack || (!ack.ok && !ack.duplicate)) throw new Error(ack && ack.error || 'Transaksi belum diterima server.');
             return KPGStorage.removeOutbox(item.client_id).then(function () {
               var local = D.transaksi.find(function (t) { return t.client_id === item.client_id; });
               if (local) local.sync_status = 'TERSINKRON';
@@ -1533,6 +1533,8 @@
     $('#daftarKasirAtur').innerHTML = D.kasir.map(function (k) {
       return '<li><span><b>' + esc(k.nama) + '</b> <span class="lencana">' + k.peran + '</span></span>' + (k.id === pengguna.id ? '<span class="redup kecil">sedang masuk</span>' : '<button class="tautan" data-hk="' + k.id + '">Hapus</button>') + '</li>';
     }).join('');
+    var panelAudit = $('#panelAuditOwner');
+    if (panelAudit) panelAudit.hidden = !isOwner();
   }
 
   function eksporProdukCSV() {
@@ -1703,10 +1705,28 @@
     $('#daftarTrx').onclick = function (e) {
       var c = e.target.closest('[data-cetak]'), h = e.target.closest('[data-hapus]');
       if (c) cetak(D.transaksi.find(function (x) { return x.id === c.dataset.cetak; }));
-      if (h && confirm('Batalkan transaksi ini? Stok akan dikembalikan.')) {
+      if (h && confirm('Batalkan transaksi ini? Stok akan dikembalikan ke cabang terkait.')) {
         var x = D.transaksi.find(function (t) { return t.id === h.dataset.hapus; });
-        x.items.forEach(function (i) { var p = D.produk.find(function (q) { return q.id === i.pid; }); if (p) p.stok += i.qty; });
-        D.transaksi = D.transaksi.filter(function (t) { return t !== x; }); simpan(); renderRiwayat(); toast('Transaksi dibatalkan');
+        if (!x) return;
+        var alasan = prompt('Alasan pembatalan transaksi:', 'Batal oleh admin/owner');
+        if (alasan === null) return;
+        var batalServer = (x.sync_status === 'TERSINKRON' && tokenAktif())
+          ? KPGApi.call('batalkanTransaksi', { token: tokenAktif(), id_transaksi: x.id, alasan: alasan })
+          : Promise.resolve();
+        batalServer.then(function () {
+          x.items.forEach(function (i) {
+            var p = D.produk.find(function (q) { return q.id === i.pid; });
+            if (p) p.stok += i.qty;
+          });
+          if (window.KPGStorage && x.client_id) KPGStorage.removeOutbox(x.client_id).catch(function () {});
+          D.transaksi = D.transaksi.filter(function (t) { return t !== x; });
+          return simpan();
+        }).then(function () {
+          renderRiwayat();
+          toast('Transaksi berhasil dibatalkan dan stok dikembalikan.');
+        }).catch(function (err) {
+          toast('Gagal membatalkan di server: ' + err.message);
+        });
       }
     };
 
@@ -1737,6 +1757,53 @@
     $('#fileCsv').onchange = function () { bacaFile(this, function (t) { toast(imporProdukCSV(t) + ' produk diimpor'); }); };
     $('#btnContoh').onclick = function () { if (confirm('Ganti data dengan data contoh?')) { D = dataContoh(); simpan(); tampilMasuk(); } };
     $('#btnReset').onclick = function () { if (confirm('Yakin hapus SEMUA data? Backup dulu ya.')) { D = dataKosong(); simpan(); toast('Data dikosongkan. PIN admin: 1234'); tampilMasuk(); } };
+    
+    var btnAudit = $('#btnAuditIntegritas');
+    if (btnAudit) btnAudit.onclick = function () {
+      var box = $('#hasilAuditOwner');
+      box.textContent = 'Memeriksa integritas stok & jurnal di server...';
+      btnAudit.disabled = true;
+      KPGApi.call('auditIntegritas', { token: tokenAktif() }).then(function (res) {
+        var selisih = Array.isArray(res.selisih) ? res.selisih : [];
+        var pending = Number(res.pending_count || 0);
+        var corrupt = Number(res.corrupt_count || 0);
+        if (!selisih.length && !pending && !corrupt) {
+          box.innerHTML = '<b style="color:var(--utama)">✓ Database Sehat:</b> Semua stok cabang sesuai dengan jurnal mutasi (' + (res.total_barang_diperiksa || 0) + ' item diperiksa).';
+        } else {
+          box.innerHTML = '<b style="color:#c0392b">⚠ Ditemukan Ketidaksesuaian:</b> Selisih stok: ' + selisih.length + ' item · Jurnal PENDING: ' + pending + ' · CORRUPT: ' + corrupt +
+            (selisih.length ? '<br>' + selisih.slice(0, 10).map(function (s) { return esc(s.id_cabang + ' / ' + s.id_barang) + ' (Sistem: ' + s.stok_sistem + ', Mutasi: ' + s.stok_mutasi + ')'; }).join('<br>') : '');
+        }
+      }).catch(function (e) {
+        box.textContent = 'Gagal menjalankan audit: ' + e.message;
+      }).finally(function () { btnAudit.disabled = false; });
+    };
+
+    var btnRecover = $('#btnRecoverPending');
+    if (btnRecover) btnRecover.onclick = function () {
+      var box = $('#hasilAuditOwner');
+      box.textContent = 'Memulihkan jurnal tertunda...';
+      btnRecover.disabled = true;
+      KPGApi.call('recoverPending', { token: tokenAktif() }).then(function (res) {
+        box.textContent = 'Pemulihan selesai. Dipulihkan: ' + (res.recovered || 0) + ', Gagal/Corrupt: ' + (res.corrupt || 0) + '.';
+        toast('Pemulihan jurnal selesai');
+      }).catch(function (e) {
+        box.textContent = 'Gagal memulihkan jurnal: ' + e.message;
+      }).finally(function () { btnRecover.disabled = false; });
+    };
+
+    var btnBaseline = $('#btnSetBaseline');
+    if (btnBaseline) btnBaseline.onclick = function () {
+      if (!confirm('Set Baseline Stok akan mengunci saldo stok saat ini sebagai titik awal audit baru. Lanjutkan?')) return;
+      var box = $('#hasilAuditOwner');
+      box.textContent = 'Mengunci baseline stok...';
+      btnBaseline.disabled = true;
+      KPGApi.call('setStokBaseline', { token: tokenAktif() }).then(function (res) {
+        box.textContent = 'Baseline stok berhasil dikunci (' + (res.total || 0) + ' baris stok).';
+        toast('Baseline stok berhasil dikunci');
+      }).catch(function (e) {
+        box.textContent = 'Gagal set baseline: ' + e.message;
+      }).finally(function () { btnBaseline.disabled = false; });
+    };
   }
 
   // ---------- Mulai ----------
