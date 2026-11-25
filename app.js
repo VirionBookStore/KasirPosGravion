@@ -816,15 +816,34 @@
       if (requestId !== nomorPermintaanCabangKasir) return null;
       if (rows.length) {
         dataKatalogServer = rows;
-        terapkanBarangCabangLokal(idCabang, rows);
+        // Jika handler pemilihan sudah menampilkan cache cabang ini, jangan render
+        // ulang daftar yang sama. Render ganda inilah yang membuat katalog berkedip.
+        if (String(D.id_cabang_aktif || '') !== String(idCabang)) {
+          terapkanBarangCabangLokal(idCabang, rows);
+        }
       }
       return KPGApi.call('listBarang', { token: token, id_cabang: idCabang });
     }).then(function (r) {
       if (requestId !== nomorPermintaanCabangKasir || r === null) return D.produk;
       if (!Array.isArray(r.data)) throw new Error('Respons stok cabang tidak valid.');
-      D.produk = r.data.map(barangDariServer);
-      sumberProdukPOS = null;
-      D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
+      var produkServer = r.data.map(barangDariServer);
+      var produkBerubah = produkServer.length !== D.produk.length;
+      if (!produkBerubah) {
+        for (var pi = 0; pi < produkServer.length; pi++) {
+          var ps = produkServer[pi], pl = D.produk[pi];
+          if (!pl || String(ps.id) !== String(pl.id) || Number(ps.stok || 0) !== Number(pl.stok || 0) ||
+              ps.nama !== pl.nama || ps.kategori !== pl.kategori ||
+              Number(ps.harga || 0) !== Number(pl.harga || 0) ||
+              JSON.stringify(ps.varian || []) !== JSON.stringify(pl.varian || [])) {
+            produkBerubah = true; break;
+          }
+        }
+      }
+      if (produkBerubah) {
+        D.produk = produkServer;
+        sumberProdukPOS = null;
+        D.kategori = Array.from(new Set(D.produk.map(function (p) { return p.kategori; })));
+      }
       D.id_cabang_aktif = String(idCabang);
       cabangTransaksiAktif = String(idCabang);
       try { localStorage.setItem('kpg-cabang-transaksi-owner', cabangTransaksiAktif); } catch (e) {}
@@ -838,7 +857,8 @@
       produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
       tampilkanLoaderCabangKasir = false;
       sedangMuatCabangKasir = false;
-      renderPOS();
+      // Jangan bangun ulang seluruh kartu bila stok dan katalog sama dengan cache.
+      if (produkBerubah) renderPOS();
       return simpan().then(function () { return D.produk; });
     }).catch(function (err) {
       if (requestId === nomorPermintaanCabangKasir) {
