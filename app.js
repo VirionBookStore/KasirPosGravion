@@ -1708,6 +1708,26 @@
     $('#fileCsv').onchange = function () { bacaFile(this, function (t) { toast(imporProdukCSV(t) + ' produk diimpor'); }); };
     $('#btnContoh').onclick = function () { if (confirm('Ganti data dengan data contoh?')) { D = dataContoh(); simpan(); tampilMasuk(); } };
     $('#btnReset').onclick = function () { if (confirm('Yakin hapus SEMUA data? Backup dulu ya.')) { D = dataKosong(); simpan(); toast('Data dikosongkan. PIN admin: 1234'); tampilMasuk(); } };
+    var btnAudit = $('#btnAuditIntegritas');
+    if (btnAudit) btnAudit.onclick = function () {
+      var box = $('#hasilAuditOwner'); box.textContent = 'Memeriksa integritas stok & jurnal di server...'; btnAudit.disabled = true;
+      KPGApi.call('auditIntegritas', { token: tokenAktif() }).then(function (res) {
+        var selisih = Array.isArray(res.selisih) ? res.selisih : [], pending = Number(res.pending_count || 0), corrupt = Number(res.corrupt_count || 0);
+        if (!selisih.length && !pending && !corrupt) box.innerHTML = '<b style="color:var(--utama)">✓ Database Sehat:</b> Semua stok cabang sesuai dengan jurnal mutasi (' + (res.total_barang_diperiksa || 0) + ' item diperiksa).';
+        else box.innerHTML = '<b style="color:#c0392b">⚠ Ditemukan Ketidaksesuaian:</b> Selisih stok: ' + selisih.length + ' item · Jurnal PENDING: ' + pending + ' · CORRUPT: ' + corrupt + (selisih.length ? '<br>' + selisih.slice(0, 10).map(function (s) { return esc(s.id_cabang + ' / ' + s.id_barang) + ' (Sistem: ' + s.stok_sistem + ', Mutasi: ' + s.stok_mutasi + ')'; }).join('<br>') : '');
+      }).catch(function (e) { box.textContent = 'Gagal menjalankan audit: ' + e.message; }).finally(function () { btnAudit.disabled = false; });
+    };
+    var btnRecover = $('#btnRecoverPending');
+    if (btnRecover) btnRecover.onclick = function () {
+      var box = $('#hasilAuditOwner'); box.textContent = 'Memulihkan jurnal tertunda...'; btnRecover.disabled = true;
+      KPGApi.call('recoverPending', { token: tokenAktif() }).then(function (res) { box.textContent = 'Pemulihan selesai. Dipulihkan: ' + (res.recovered || 0) + ', Gagal/Corrupt: ' + (res.corrupt || 0) + '.'; toast('Pemulihan jurnal selesai'); }).catch(function (e) { box.textContent = 'Gagal memulihkan jurnal: ' + e.message; }).finally(function () { btnRecover.disabled = false; });
+    };
+    var btnBaseline = $('#btnSetBaseline');
+    if (btnBaseline) btnBaseline.onclick = function () {
+      if (!confirm('Set Baseline Stok akan mengunci saldo stok saat ini sebagai titik awal audit baru. Lanjutkan?')) return;
+      var box = $('#hasilAuditOwner'); box.textContent = 'Mengunci baseline stok...'; btnBaseline.disabled = true;
+      KPGApi.call('setStokBaseline', { token: tokenAktif() }).then(function (res) { box.textContent = 'Baseline stok berhasil dikunci (' + (res.total || 0) + ' baris stok).'; toast('Baseline stok berhasil dikunci'); }).catch(function (e) { box.textContent = 'Gagal set baseline: ' + e.message; }).finally(function () { btnBaseline.disabled = false; });
+    };
   }
 
   // ---------- Mulai ----------
