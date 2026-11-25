@@ -170,16 +170,36 @@
         </div>
       </div>
       <div class="panel">
-        <h3>Data</h3>
+        <h3>1. Backup &amp; Restore</h3>
+        <p class="redup kecil">Kelola sinkronisasi manual dengan server serta cadangan data lokal perangkat.</p>
         <div class="aksi wrap">
-          <button class="tombol" id="btnBackup">Backup JSON</button>
-          <label class="tombol">Pulihkan JSON<input type="file" id="fileBackup" accept=".json,application/json" hidden></label>
-          <button class="tombol" id="btnEksporProduk">Ekspor produk CSV</button>
-          <label class="tombol">Impor produk CSV<input type="file" id="fileCsv" accept=".csv,text/csv" hidden></label>
-          <button class="tombol" id="btnContoh">Isi data contoh</button>
-          <button class="tombol bahaya" id="btnReset">Hapus semua data</button>
+          <button class="tombol utama" type="button" id="btnSyncManual">Sinkronisasi Manual</button>
+          <button class="tombol" type="button" id="btnBackup">Backup JSON</button>
+          <label class="tombol" style="cursor:pointer">Pulihkan JSON<input type="file" id="fileBackup" accept="application/json,.json" hidden></label>
         </div>
-        <p class="redup kecil">Format CSV produk: nama,kategori,stok,varian (varian ditulis <code>Reguler:15000|Large:20000</code>). Data utama disimpan lokal agar kasir tetap cepat; transaksi yang menunggu akan dikirim ke GAS saat koneksi tersedia.</p>
+        <div class="aksi wrap" style="margin-top:10px">
+          <button class="tombol" type="button" id="btnContoh">Isi data contoh</button>
+          <button class="tombol bahaya" type="button" id="btnReset">Hapus semua data</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>2. Update Data (Excel)</h3>
+        <p class="redup kecil">
+          <b>Import Barang Baru:</b> kolom wajib <code>id_barang, kode_barang, barcode, nama_barang, kategori, satuan, harga_beli, harga_jual, foto, status, diubah_pada, id_supplier, nama_supplier</code>.<br>
+          <b>Import Perubahan Barang:</b> cukup isi <code>id_barang</code> + kolom yang berubah saja (misal <code>harga_beli</code>, <code>harga_jual</code>, <code>foto</code>).<br>
+          <b>Import Stock Cabang:</b> kolom <code>id_cabang, id_barang, perubahan_stock</code> (angka positif = tambah stok, negatif = kurangi stok).
+        </p>
+        <div class="aksi wrap">
+          <button class="tombol" type="button" id="btnExportBarangExcel">Export Barang ke Excel</button>
+          <label class="tombol" for="fileImportBarangBaru" style="cursor:pointer">Import Barang (Excel)</label>
+          <input id="fileImportBarangBaru" type="file" accept=".xlsx,.xls,.csv" hidden>
+          <label class="tombol" for="fileImportPerubahanBarang" style="cursor:pointer">Import Perubahan Barang (Excel)</label>
+          <input id="fileImportPerubahanBarang" type="file" accept=".xlsx,.xls,.csv" hidden>
+          <label class="tombol" for="fileImportStokCabang" style="cursor:pointer">Import Stock Cabang (Excel)</label>
+          <input id="fileImportStokCabang" type="file" accept=".xlsx,.xls,.csv" hidden>
+        </div>
+        <div id="statusUpdateExcel" class="redup kecil" style="margin-top:10px"></div>
       </div>
 
       <div class="panel" id="panelAuditOwner" hidden>
@@ -205,8 +225,9 @@
 <div id="struk" class="struk" aria-hidden="true"></div>
 <div id="toast" class="toast" role="status"></div>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="storage.js"></script>
-<script src="api.js?v=1.2.1"></script>
-<script src="app.js?v=1.2.1"></script>
+<script src="api.js?v=1.2.2"></script>
+<script src="app.js?v=1.2.2"></script>
 </body>
 </html>
