@@ -1416,7 +1416,7 @@
     if (!navigator.onLine || !tokenAktif()) return Promise.resolve(false);
     barangQueueDrainPromise = bacaAntreanBarang().then(function (q) {
       function next() {
-        if (!q.length || !navigator.onLine) return Promise.resolve(false);
+        if (!q.length) return Promise.resolve(true);\n        if (!navigator.onLine) return Promise.resolve(false);
         var item = q[0];
         var payload = item.payload;
         var upload = item.base64 && !payload.foto
