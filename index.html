@@ -186,9 +186,9 @@
       <div class="panel">
         <h3>2. Update Data (Excel)</h3>
         <p class="redup kecil">
-          <b>Import Barang Baru:</b> kolom wajib <code>id_barang, kode_barang, barcode, nama_barang, kategori, satuan, harga_beli, harga_jual, foto, status, diubah_pada, id_supplier, nama_supplier</code>.<br>
-          <b>Import Perubahan Barang:</b> cukup isi <code>id_barang</code> + kolom yang berubah saja (misal <code>harga_beli</code>, <code>harga_jual</code>, <code>foto</code>).<br>
-          <b>Import Stock Cabang:</b> kolom <code>id_cabang, id_barang, perubahan_stock</code> (angka positif = tambah stok, negatif = kurangi stok).
+          <b>Import Barang Baru:</b> kolom wajib <code>id_barang, kode_barang, barcode, nama_barang, kategori, satuan, harga_beli, harga_jual, foto, status, id_supplier, nama_supplier</code>.<br>
+          <b>Import Perubahan Barang:</b> cukup isi <code>id_barang</code> + kolom yang berubah saja (misal <code>harga_beli</code>, <code>harga_jual</code>, <code>foto</code>, <code>id_supplier</code>, <code>nama_supplier</code>).<br>
+          <b>Import Stock Cabang:</b> kolom wajib <code>id_cabang, id_barang, stok</code> (stok akhir absolut &ge; 0) dan opsional <code>lokasi_rak</code>.
         </p>
         <div class="aksi wrap">
           <button class="tombol" type="button" id="btnExportBarangExcel">Export Barang ke Excel</button>
@@ -205,9 +205,10 @@
       <div class="panel" id="panelAuditOwner" hidden>
         <h3>Audit &amp; Integritas Database (Owner)</h3>
         <p class="redup kecil">Gunakan fitur ini untuk mengunci saldo awal audit stok, memverifikasi kecocokan mutasi dengan stok aktif, serta memulihkan jurnal tertunda.</p>
-        <div class="aksi wrap">
+       <div class="aksi wrap">
           <button class="tombol" type="button" id="btnAuditIntegritas">Cek Integritas Stok</button>
           <button class="tombol" type="button" id="btnRecoverPending">Pulihkan Jurnal Tertunda</button>
+          <button class="tombol" type="button" id="btnBackupServer">Backup Snapshot Server</button>
           <button class="tombol bahaya" type="button" id="btnSetBaseline">Set Baseline Stok</button>
         </div>
         <div id="hasilAuditOwner" class="redup kecil" style="margin-top:12px"></div>
