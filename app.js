@@ -1153,6 +1153,7 @@
   }
   function muatKatalogServer(paksa) {
     var token = tokenAktif();
+    prosesAntreanBarang();
     if (!token) return Promise.reject(new Error('Sesi online tidak ditemukan. Login online kembali.'));
     var cacheScope = 'SEMUA';
     var cacheKey = 'catalog:v3:' + cacheScope;
@@ -1399,6 +1400,41 @@
       $('#tabelProduk').insertAdjacentHTML('beforeend', '<button type="button" class="tombol katalog-muat-lagi" data-muat-lagi>tampilkan ' + Math.min(katalogPageSize, list.length - tampil.length) + ' produk berikutnya (' + tampil.length + '/' + list.length + ')</button>');
     }
   }
+  // Antrean penyimpanan Master Barang: simpan ke IndexedDB terlebih dahulu, kirim ke GAS di belakang.
+  var BARANG_PENDING_KEY = 'barang:pending-save:v1';
+  var barangQueueDrainPromise = null;
+  function bacaAntreanBarang() {
+    if (!window.KPGStorage || !KPGStorage.getMeta) return Promise.reject(new Error('Penyimpanan lokal IndexedDB tidak tersedia.'));
+    return KPGStorage.getMeta(BARANG_PENDING_KEY).then(function (q) { return Array.isArray(q) ? q : []; });
+  }
+  function simpanAntreanBarang(q) {
+    if (!window.KPGStorage || !KPGStorage.setMeta) return Promise.reject(new Error('Penyimpanan lokal IndexedDB tidak tersedia.'));
+    return KPGStorage.setMeta(BARANG_PENDING_KEY, q);
+  }
+  function prosesAntreanBarang() {
+    if (barangQueueDrainPromise) return barangQueueDrainPromise;
+    if (!navigator.onLine || !tokenAktif()) return Promise.resolve(false);
+    barangQueueDrainPromise = bacaAntreanBarang().then(function (q) {
+      function next() {
+        if (!q.length || !navigator.onLine) return Promise.resolve(false);
+        var item = q[0];
+        var payload = item.payload;
+        var upload = item.base64 && !payload.foto
+          ? KPGApi.call('uploadFotoBarang', { token: tokenAktif(), id_barang: payload.id_barang || '', fileName: item.fileName || (payload.nama_barang + '.jpg'), mimeType: item.mimeType || 'image/jpeg', base64: item.base64 }).then(function (up) {
+              payload.foto = up.url || up.foto || '';
+              item.base64 = '';
+              return simpanAntreanBarang(q).then(function () { return payload.foto; });
+            })
+          : Promise.resolve(payload.foto || '');
+        return upload.then(function () { payload.token = tokenAktif(); return KPGApi.call('saveBarang', payload); }).then(function () {
+          q.shift(); return simpanAntreanBarang(q).then(next);
+        }).catch(function (e) { console.warn('Antrean Master Barang tertunda:', e); return false; });
+      }
+      return next();
+    }).catch(function (e) { console.warn('Antrean Master Barang gagal dibaca:', e); return false; }).finally(function () { barangQueueDrainPromise = null; });
+    return barangQueueDrainPromise;
+  }
+
   function formProduk(p) {
     var baru = !p;
     p = p || { id: '', nama: '', kategori: D.kategori[0] || 'Umum', barcode: '', kode_barang: '', satuan: 'pcs', harga_beli: 0, id_supplier: '', nama_supplier: '', foto: '', varian: [{ nama: 'Reguler', harga: 0 }] };
@@ -1481,52 +1517,36 @@
           if (!nama) return toast('Nama produk wajib diisi.');
           var selSup = $('#fSupplier', f);
           var idSupplier = selSup ? selSup.value.trim() : '';
-          var namaSupplier = (selSup && selSup.selectedOptions && selSup.selectedOptions[0] && idSupplier)
-            ? (selSup.selectedOptions[0].dataset.nama || '') : '';
+          var namaSupplier = (selSup && selSup.selectedOptions && selSup.selectedOptions[0] && idSupplier) ? (selSup.selectedOptions[0].dataset.nama || '') : '';
+          var payload = {
+            token: tokenAktif(), id_barang: baru ? '' : p.id, nama_barang: nama,
+            kategori: $('#fKat', f).value.trim() || 'Umum', barcode: $('#fBarcode', f).value.trim(),
+            kode_barang: $('#fKode', f).value.trim(), satuan: $('#fSatuan', f).value.trim() || 'pcs',
+            id_supplier: idSupplier, nama_supplier: namaSupplier,
+            harga_beli: Math.max(0, Number($('#fBeli', f).value) || 0),
+            harga_jual: Math.max(0, Number($('#fJual', f).value) || 0),
+            foto: fotoDataBase64 ? '' : inFotoUrl.value.trim(), status: 'AKTIF'
+          };
+          var item = { payload: payload, base64: fotoDataBase64, fileName: fotoNamaFile || (nama + '.jpg'), mimeType: fotoMime, queuedAt: Date.now() };
           var btnSimpan = $('#fSimpan', f);
-          btnSimpan.disabled = true;
-          btnSimpan.textContent = 'Menyimpan...';
-
-          var uploadPromise = fotoDataBase64
-            ? KPGApi.call('uploadFotoBarang', {
-                token: tokenAktif(),
-                id_barang: baru ? '' : p.id,
-                fileName: fotoNamaFile || (nama + '.jpg'),
-                mimeType: fotoMime,
-                base64: fotoDataBase64
-              }).then(function (up) { return up.url || up.foto || ''; })
-            : Promise.resolve(inFotoUrl.value.trim());
-
-          uploadPromise.then(function (fotoUrlFinal) {
-            var payload = {
-              token: tokenAktif(),
-              id_barang: baru ? '' : p.id,
-              nama_barang: nama,
-              kategori: $('#fKat', f).value.trim() || 'Umum',
-              barcode: $('#fBarcode', f).value.trim(),
-              kode_barang: $('#fKode', f).value.trim(),
-              satuan: $('#fSatuan', f).value.trim() || 'pcs',
-              id_supplier: idSupplier,
-              nama_supplier: namaSupplier,
-              harga_beli: Math.max(0, Number($('#fBeli', f).value) || 0),
-              harga_jual: Math.max(0, Number($('#fJual', f).value) || 0),
-              foto: fotoUrlFinal,
-              status: 'AKTIF'
-            };
-            return KPGApi.call('saveBarang', payload);
+          btnSimpan.disabled = true; btnSimpan.textContent = 'Menyimpan lokal...';
+          bacaAntreanBarang().then(function (q) {
+            q.push(item);
+            return simpanAntreanBarang(q);
           }).then(function () {
             tutupDialog();
-            return muatKatalogServer(true).then(function () {
-              if (pengguna && pengguna.peran === 'owner' && cabangTransaksiAktif) return muatBarangUntukCabang(cabangTransaksiAktif);
+            toast('Barang disimpan lokal. Sinkronisasi berjalan di belakang.');
+            prosesAntreanBarang().then(function (ok) {
+              if (ok !== false) {
+                muatKatalogServer(true).then(function () { if (pengguna && pengguna.peran === 'owner' && cabangTransaksiAktif) return muatBarangUntukCabang(cabangTransaksiAktif); }).catch(function (e) { console.warn(e); });
+                toast('Sinkronisasi Master Barang selesai.');
+              }
             });
-          }).then(function () {
-            toast('Master produk tersimpan di server.');
           }).catch(function (e) {
-            btnSimpan.disabled = false;
-            btnSimpan.textContent = 'Simpan';
-            toast('Gagal menyimpan: ' + e.message);
+            btnSimpan.disabled = false; btnSimpan.textContent = 'Simpan';
+            toast('Tidak dapat menyimpan lokal: ' + e.message);
           });
-        };
+        };;
       });
   }
   function aturStokCabang(p) {
