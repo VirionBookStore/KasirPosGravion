@@ -6,7 +6,7 @@
     logo: 'img/Logo.png',
     fotoContoh: 'img/produk-contoh.svg',
     fotoProduk: {},
-    ikonSvg: {
+    ikonSvg: { // file ikon bisa PNG atau SVG, contoh jalur PNG
       // 'nav-kasir': 'img/icons/kasir.png',
       // 'nav-produk': 'img/icons/produk.png'
     }
