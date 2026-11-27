@@ -1491,8 +1491,8 @@
             ? KPGApi.call('uploadFotoBarang', {
                 token: tokenAktif(),
                 id_barang: baru ? '' : p.id,
-                nama_file: fotoNamaFile || (nama + '.jpg'),
-                mime_type: fotoMime,
+                fileName: fotoNamaFile || (nama + '.jpg'),
+                mimeType: fotoMime,
                 base64: fotoDataBase64
               }).then(function (up) { return up.url || up.foto || ''; })
             : Promise.resolve(inFotoUrl.value.trim());
