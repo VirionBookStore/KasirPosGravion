@@ -46,7 +46,6 @@
 
   function saveStickyMap(map) {
     try {
-      // Batasi maksimal 50 entri agar sessionStorage tetap ringan
       var keys = Object.keys(map);
       if (keys.length > 50) {
         keys.slice(0, keys.length - 50).forEach(function (k) { delete map[k]; });
@@ -63,7 +62,7 @@
     return action + ':' + hashRingan(JSON.stringify(clone));
   }
 
-  // Menghasilkan client_id yang tetap (sticky) jika payload yang sama di-retry setelah timeout/error
+  // Menghasilkan client_id tetap (sticky) jika payload yang sama di-retry setelah timeout/error
   function resolveStickyClientId(action, params) {
     if (params.client_id) {
       return { clientId: String(params.client_id).trim(), fingerprint: null };
@@ -104,7 +103,6 @@
       stickyInfo = resolveStickyClientId(action, params);
       params.client_id = stickyInfo.clientId;
 
-      // Jika mutasi dengan client_id yang sama sedang diproses, kembalikan promise yang sama
       var flightKey = action + '|' + stickyInfo.clientId;
       if (inFlightMutations[flightKey]) {
         return inFlightMutations[flightKey];
@@ -119,7 +117,6 @@
         if (settled) return;
         settled = true;
         cleanup();
-        // Jangan hapus sticky client_id saat timeout agar retry memakai ID yang sama
         reject(new Error('GAS tidak merespons dalam 45 detik. Tekan Coba Lagi untuk melanjutkan dengan ID aman.'));
       }, 45000);
 
@@ -141,7 +138,6 @@
           if (isSessionError(errMsg) && typeof sessionExpiredHandler === 'function') {
             try { sessionExpiredHandler(errMsg); } catch (e) {}
           }
-          // Jika server menolak secara bisnis (validasi/stok kurang), hapus sticky agar koreksi input mendapat ID baru
           clearStickyClientId(stickyInfo.fingerprint);
           reject(new Error(errMsg));
         }
@@ -169,79 +165,7 @@
         if (settled) return;
         settled = true;
         cleanup();
-        // Jangan hapus sticky client_id saat jaringan putus agar retry tetap idempoten
         reject(new Error('Browser gagal memuat respons GAS. Periksa koneksi internet lalu coba lagi.'));
       };
 
-      script.src = fullUrl;
-      document.head.appendChild(script);
-    });
-
-    if (isMutation && stickyInfo.clientId) {
-      var fKey = action + '|' + stickyInfo.clientId;
-      inFlightMutations[fKey] = promise;
-      promise.then(
-        function () { delete inFlightMutations[fKey]; },
-        function () { delete inFlightMutations[fKey]; }
-      );
-    }
-
-    return promise;
-  }
-
-  function hex(buffer) {
-    return Array.prototype.map.call(new Uint8Array(buffer), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
-  }
-  function digest(value) {
-    if (!window.crypto || !crypto.subtle) return Promise.reject(new Error('Browser harus menggunakan HTTPS dan mendukung Web Crypto.'));
-    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(value))).then(hex);
-  }
-  function randomSalt() {
-    if (!window.crypto || !crypto.getRandomValues) throw new Error('Browser tidak mendukung pembuat PIN lokal yang aman.');
-    var bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    return hex(bytes);
-  }
-  function derivePin(pin, saltHex) {
-    if (!window.crypto || !crypto.subtle) return Promise.reject(new Error('Browser tidak mendukung verifikasi PIN aman.'));
-    var salt = new Uint8Array((String(saltHex).match(/.{2}/g) || []).map(function (x) { return parseInt(x, 16); }));
-    return crypto.subtle.importKey('raw', new TextEncoder().encode(String(pin)), 'PBKDF2', false, ['deriveBits'])
-      .then(function (key) {
-        return crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: 120000, hash: 'SHA-256' }, key, 256);
-      }).then(hex);
-  }
-  function login(username, password) {
-    username = String(username || '').trim().toLowerCase();
-    password = String(password || '');
-    if (!username || !password) return Promise.reject(new Error('Username dan password wajib diisi.'));
-    return jsonp('loginChallenge', { username: username }).then(function (challenge) {
-      return digest(challenge.salt + '|' + password).then(function (passwordHash) {
-        return digest(challenge.nonce + '|' + passwordHash);
-      }).then(function (proof) {
-        return jsonp('loginVerify', { username: username, nonce: challenge.nonce, proof: proof });
-      });
-    });
-  }
-  function buatPin(pin) {
-    var salt = randomSalt();
-    return derivePin(pin, salt).then(function (pinHash) {
-      return { salt: salt, pin_hash: pinHash };
-    });
-  }
-  function verifikasiPin(pin, salt) {
-    return derivePin(pin, salt);
-  }
-  function onSessionExpired(fn) {
-    sessionExpiredHandler = typeof fn === 'function' ? fn : null;
-  }
-
-  window.KPGApi = {
-    url: API_URL,
-    call: jsonp,
-    makeClientId: buatClientId,
-    onSessionExpired: onSessionExpired,
-    login: login,
-    createOfflinePin: buatPin,
-    verifyOfflinePin: verifikasiPin
-  };
-})();
+      script.src = fullUrl
