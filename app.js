@@ -2183,7 +2183,8 @@
     if (!state && /[?&]demo\b/.test(location.search)) state = dataContoh();
     muat(state);
     ikatEvent();
-    pasangLogo();\n  pasangIkonSvg();
+    pasangLogo();
+  pasangIkonSvg();
     if (/[?&]demo\b/.test(location.search)) {
       masuk(D.kasir[0]);
       [0, 0, 3, 8].forEach(function (i, n) { var p = D.produk[i]; if (p) tambahKeKeranjang(p, p.varian[n % p.varian.length]); });
