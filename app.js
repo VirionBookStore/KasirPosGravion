@@ -701,11 +701,34 @@
     renderKeranjang();
   }
 
+  // Update hanya kartu produk yang berubah akibat mutasi keranjang; katalog tidak dirender ulang.
+  function updateKartuProduk(pid) {
+    var p = D.produk.find(function (x) { return String(x.id) === String(pid); });
+    var card = $('#gridProduk .kartu-produk[data-id="' + pid + '"]');
+    if (!p || !card) return;
+    var diKer = stokTerpakai(p.id), sisa = Number(p.stok || 0) - diKer;
+    card.classList.toggle('dipilih', diKer > 0);
+    card.disabled = sisa <= 0;
+    var thumb = $('.thumb', card), badge = thumb && $('.di-ker', thumb);
+    if (diKer > 0) {
+      if (!badge) { badge = document.createElement('span'); badge.className = 'di-ker'; if (thumb) thumb.appendChild(badge); }
+      if (badge) badge.textContent = diKer;
+    } else if (badge) badge.remove();
+    var stokEl = $('.kp-teks .stok', card);
+    if (stokEl) {
+      stokEl.textContent = (sisa <= 0 ? 'Stok habis' : (sisa <= 5 ? 'Sisa ' : 'Stok ') + sisa) + (p.varian.length > 1 ? ' · ' + p.varian.length + ' varian' : '');
+      stokEl.classList.toggle('tipis', sisa > 0 && sisa <= 5);
+    }
+    var habis = thumb && $('.habis', thumb);
+    if (sisa <= 0 && thumb && !habis) { habis = document.createElement('span'); habis.className='habis'; habis.textContent='Habis'; thumb.appendChild(habis); }
+    if (sisa > 0 && habis) habis.remove();
+  }
+
   function tambahKeKeranjang(p, v) {
     if (p.stok - stokTerpakai(p.id) <= 0) return toast('Stok ' + p.nama + ' habis');
     var ada = keranjang.find(function (i) { return i.pid === p.id && i.varian === v.nama; });
     if (ada) ada.qty++; else keranjang.push({ pid: p.id, nama: p.nama, varian: v.nama, harga: v.harga, qty: 1 });
-    renderPOS();
+    renderKeranjang(); updateKartuProduk(p.id);
     var c = $('.kartu-produk[data-id="' + p.id + '"]'); if (c) { c.style.animation = 'none'; c.classList.add('bump'); }
     ['#kerJumlah', '#fabKeranjang'].forEach(function (q) { var e = $(q); if (e) { e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); } });
   }
@@ -1835,10 +1858,10 @@
       var it = keranjang[+b.dataset.n], d = +b.dataset.d;
       if (d > 0) { var p = D.produk.find(function (x) { return x.id === it.pid; }); if (p && p.stok - stokTerpakai(p.id) <= 0) return toast('Stok tidak cukup'); }
       it.qty += d; if (it.qty <= 0) keranjang.splice(+b.dataset.n, 1);
-      renderPOS();
+      renderKeranjang(); updateKartuProduk(it.pid);
     };
     $('#inDiskon').oninput = renderKeranjang; $('#tipeDiskon').onchange = renderKeranjang;
-    $('#btnKosongkan').onclick = function () { keranjang = []; renderPOS(); };
+    $('#btnKosongkan').onclick = function () { var ids = keranjang.map(function (i) { return i.pid; }); keranjang = []; renderKeranjang(); ids.forEach(updateKartuProduk); };
     $('#btnBayar').onclick = function () {
       if (pengguna && pengguna.peran === 'owner' && !cabangTransaksiAktif) {
         var pilih = $('#pilihCabangTransaksi');
