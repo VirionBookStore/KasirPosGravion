@@ -9,6 +9,7 @@
   // Daftar lengkap action mutasi yang wajib membawa client_id idempotensi di GAS v1.2.2
   var MUTATION_ACTIONS = {
     simpanTransaksi: true,
+    saveBarang: true,
     saveStokCabang: true,
     stokMasuk: true,
     returBarang: true,
