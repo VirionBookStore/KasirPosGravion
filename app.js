@@ -3,9 +3,13 @@
 
   // ---------- KONFIG gambar: ganti logo/foto cukup di sini (atau timpa berkas di img/) ----------
   var KONFIG = {
-    logo: 'img/logo.svg',                // logo toko: sidebar, layar masuk, struk. '' = pakai ikon bawaan
-    fotoContoh: 'img/produk-contoh.svg', // placeholder foto produk (rasio 1:1)
-    fotoProduk: {},                      // foto produk contoh per nama\n    ikonSvg: {                           // ganti ikon dengan file SVG di folder img/icons/\n      // 'nav-kasir': 'img/icons/kasir.svg',\n      // 'nav-produk': 'img/icons/produk.svg'\n    }
+    logo: 'img/logo.png',
+    fotoContoh: 'img/produk-contoh.svg',
+    fotoProduk: {},
+    ikonSvg: {
+      // 'nav-kasir': 'img/icons/kasir.png',
+      // 'nav-produk': 'img/icons/produk.png'
+    }
   };
 
   // ---------- Penyimpanan (localStorage, offline) ----------
@@ -250,7 +254,19 @@
   }
   window.__ilusCadangan = function (id) { var p = D.produk.filter(function (x) { return x.id === id; })[0]; return p ? ilustrasiSvg(p) : ''; };
   // Logo: tampil di .merek bila gambar termuat; gagal dimuat -> inisial nama toko
-  \n  // ---------- Penggantian ikon SVG via file eksternal ----------\n  function pasangIkonSvg() {\n    var map = KONFIG.ikonSvg || {};\n    Object.keys(map).forEach(function (key) {\n      var svg = document.querySelector('[data-icon-svg="' + key + '"]');\n      if (!svg || !map[key]) return;\n      var img = document.createElement('img'); img.src = map[key]; img.alt = ''; img.setAttribute('aria-hidden','true');\n      img.className = 'ikon-svg-kustom'; img.style.width = '1.25em'; img.style.height = '1.25em'; img.style.objectFit = 'contain';\n      svg.replaceWith(img);\n    });\n  }\nfunction pasangLogo() {
+  
+  // ---------- Penggantian ikon gambar (PNG/SVG) ----------
+  function pasangIkonSvg() {
+    var map = KONFIG.ikonSvg || {};
+    Object.keys(map).forEach(function (key) {
+      var node = document.querySelector('[data-icon-svg="' + key + '"]');
+      if (!node || !map[key]) return;
+      var img = document.createElement('img'); img.src = map[key]; img.alt = ''; img.setAttribute('aria-hidden', 'true');
+      img.className = 'ikon-svg-kustom'; img.style.width = '1.25em'; img.style.height = '1.25em'; img.style.objectFit = 'contain';
+      node.replaceWith(img);
+    });
+  }
+  function pasangLogo() {
     if (!KONFIG.logo) return;
     $$('.merek .logo').forEach(function (svg) {
       if (svg.getAttribute('data-logo-siap')) return; svg.setAttribute('data-logo-siap', '1');
@@ -2167,7 +2183,7 @@
     if (!state && /[?&]demo\b/.test(location.search)) state = dataContoh();
     muat(state);
     ikatEvent();
-    pasangLogo(); pasangIkonSvg();
+    pasangLogo();\n  pasangIkonSvg();
     if (/[?&]demo\b/.test(location.search)) {
       masuk(D.kasir[0]);
       [0, 0, 3, 8].forEach(function (i, n) { var p = D.produk[i]; if (p) tambahKeKeranjang(p, p.varian[n % p.varian.length]); });
