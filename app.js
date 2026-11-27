@@ -1483,10 +1483,70 @@
           var idSupplier = selSup ? selSup.value.trim() : '';
           var namaSupplier = (selSup && selSup.selectedOptions && selSup.selectedOptions[0] && idSupplier)
             ? (selSup.selectedOptions[0].dataset.nama || '') : '';
-          var btnSimpan = $('#fSimpan', f);
-          btnSimpan.disabled = true;
-          btnSimpan.textContent = 'Menyimpan...';
 
+          var kategori = $('#fKat', f).value.trim() || 'Umum';
+          var barcode = $('#fBarcode', f).value.trim();
+          var kodeBarang = $('#fKode', f).value.trim();
+          var satuan = $('#fSatuan', f).value.trim() || 'pcs';
+          var hargaBeli = Math.max(0, Number($('#fBeli', f).value) || 0);
+          var hargaJual = Math.max(0, Number($('#fJual', f).value) || 0);
+          var fotoSementara = fotoDataBase64 ? ('data:' + fotoMime + ';base64,' + fotoDataBase64) : inFotoUrl.value.trim();
+          var tempId = baru ? ('TMP-' + Date.now().toString(36).toUpperCase()) : p.id;
+
+          // 1. Update data lokal langsung (Optimistic UI)
+          var itemLokal = {
+            id: tempId,
+            nama: nama,
+            kategori: kategori,
+            stok: baru ? 0 : (Number(p.stok) || 0),
+            foto: fotoSementara,
+            kode_barang: kodeBarang,
+            barcode: barcode,
+            satuan: satuan,
+            id_supplier: idSupplier,
+            nama_supplier: namaSupplier,
+            id_cabang: p.id_cabang || '',
+            nama_cabang: p.nama_cabang || '',
+            lokasi_rak: p.lokasi_rak || '',
+            harga_beli: hargaBeli,
+            varian: [{ nama: 'Reguler', harga: hargaJual }]
+          };
+
+          if (D.kategori.indexOf(kategori) < 0) D.kategori.push(kategori);
+          var idxLokal = D.produk.findIndex(function (x) { return String(x.id) === String(tempId); });
+          if (idxLokal >= 0) D.produk[idxLokal] = Object.assign({}, D.produk[idxLokal], itemLokal);
+          else D.produk.unshift(itemLokal);
+
+          var rowKatalog = {
+            id_barang: tempId,
+            kode_barang: kodeBarang,
+            barcode: barcode,
+            nama_barang: nama,
+            kategori: kategori,
+            satuan: satuan,
+            id_supplier: idSupplier,
+            nama_supplier: namaSupplier,
+            harga_beli: hargaBeli,
+            harga_jual: hargaJual,
+            foto: fotoSementara,
+            stok: itemLokal.stok,
+            id_cabang: itemLokal.id_cabang,
+            nama_cabang: itemLokal.nama_cabang,
+            lokasi_rak: itemLokal.lokasi_rak,
+            status: 'AKTIF'
+          };
+          var idxKat = dataKatalogServer.findIndex(function (x) { return String(x.id_barang || x.id) === String(tempId); });
+          if (idxKat >= 0) dataKatalogServer[idxKat] = Object.assign({}, dataKatalogServer[idxKat], rowKatalog);
+          else dataKatalogServer.unshift(rowKatalog);
+
+          produkKasirCache = null;
+          sumberProdukPOS = null;
+          simpan();
+          renderKelola();
+          tutupDialog();
+          toast('Produk disimpan, menyinkronkan ke server...');
+
+          // 2. Kirim ke GAS di latar belakang tanpa menahan layar user
           var uploadPromise = fotoDataBase64
             ? KPGApi.call('uploadFotoBarang', {
                 token: tokenAktif(),
@@ -1498,33 +1558,32 @@
             : Promise.resolve(inFotoUrl.value.trim());
 
           uploadPromise.then(function (fotoUrlFinal) {
-            var payload = {
+            return KPGApi.call('saveBarang', {
               token: tokenAktif(),
               id_barang: baru ? '' : p.id,
               nama_barang: nama,
-              kategori: $('#fKat', f).value.trim() || 'Umum',
-              barcode: $('#fBarcode', f).value.trim(),
-              kode_barang: $('#fKode', f).value.trim(),
-              satuan: $('#fSatuan', f).value.trim() || 'pcs',
+              kategori: kategori,
+              barcode: barcode,
+              kode_barang: kodeBarang,
+              satuan: satuan,
               id_supplier: idSupplier,
               nama_supplier: namaSupplier,
-              harga_beli: Math.max(0, Number($('#fBeli', f).value) || 0),
-              harga_jual: Math.max(0, Number($('#fJual', f).value) || 0),
+              harga_beli: hargaBeli,
+              harga_jual: hargaJual,
               foto: fotoUrlFinal,
               status: 'AKTIF'
-            };
-            return KPGApi.call('saveBarang', payload);
-          }).then(function () {
-            tutupDialog();
-            return muatKatalogServer(true).then(function () {
-              if (pengguna && pengguna.peran === 'owner' && cabangTransaksiAktif) return muatBarangUntukCabang(cabangTransaksiAktif);
             });
           }).then(function () {
-            toast('Master produk tersimpan di server.');
+            katalogLastFetchAt = 0;
+            return muatKatalogServer(true);
+          }).then(function () {
+            if (pengguna && pengguna.peran === 'owner' && cabangTransaksiAktif) {
+              return muatBarangUntukCabang(cabangTransaksiAktif);
+            }
+          }).then(function () {
+            toast('✓ Produk "' + nama + '" tersinkron dengan server.');
           }).catch(function (e) {
-            btnSimpan.disabled = false;
-            btnSimpan.textContent = 'Simpan';
-            toast('Gagal menyimpan: ' + e.message);
+            toast('⚠ Gagal sinkron produk "' + nama + '" ke server: ' + e.message);
           });
         };
       });
@@ -2116,11 +2175,28 @@
     }
     var token = null, cachedUser = null;
     try { token = localStorage.getItem('kpg-token'); cachedUser = JSON.parse(localStorage.getItem('kpg-user') || 'null'); } catch (e) {}
-    if (token && cachedUser && navigator.onLine) {
-      KPGApi.call('syncPull', { token: token, since: D.lastServerSync || '', id_cabang: cachedUser.peran === 'owner' ? '' : cachedUser.id_cabang })
-        .then(function (data) { terapkanSyncPull(data, cachedUser); return simpan(); })
-        .then(function () { masuk(cachedUser, token); syncPending(); })
-        .catch(function () { tampilMasuk(); });
+    if (token && cachedUser) {
+      // 1. Langsung tampilkan aplikasi seketika dari data lokal (tanpa layar putih)
+      masuk(cachedUser, token);
+
+      // 2. Jalankan syncPull di latar belakang jika online
+      if (navigator.onLine) {
+        KPGApi.call('syncPull', { token: token, since: D.lastServerSync || '', id_cabang: cachedUser.peran === 'owner' ? '' : cachedUser.id_cabang })
+          .then(function (data) {
+            terapkanSyncPull(data, cachedUser);
+            produkKasirCache = null;
+            katalogLastFetchAt = 0;
+            return simpan();
+          })
+          .then(function () {
+            if ($('#hal-kasir').classList.contains('aktif')) renderPOS();
+            if ($('#hal-produk').classList.contains('aktif')) renderKelola();
+          })
+          .catch(function (err) {
+            // Jika server lambat/offline, biarkan user tetap bekerja dengan data lokal
+            console.warn('Sync latar belakang tertunda:', err && err.message ? err.message : err);
+          });
+      }
     } else {
       tampilMasuk();
     }
