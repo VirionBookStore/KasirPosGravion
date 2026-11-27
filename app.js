@@ -1546,7 +1546,7 @@
             btnSimpan.disabled = false; btnSimpan.textContent = 'Simpan';
             toast('Tidak dapat menyimpan lokal: ' + e.message);
           });
-        };;
+        };
       });
   }
   function aturStokCabang(p) {
