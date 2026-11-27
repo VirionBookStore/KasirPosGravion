@@ -59,12 +59,12 @@
 <div id="aplikasi" class="app" hidden>
   <nav class="samping">
     <div class="merek"><img class="logo" src="logo-gravion.svg" alt="Logo Gravion" width="32" height="32" style="object-fit:contain"><span id="namaTokoNav" data-tema-nama>Kasir Gravion</span></div>
-    <button class="nav aktif" data-hal="kasir"><svg viewBox="0 0 24 24"><path d="M3 5h18v10H3zM7 19h10M12 15v4"/></svg><span>Kasir</span></button>
-    <button class="nav" data-hal="produk"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10"/></svg><span>Produk</span></button>
-    <button class="nav" data-hal="riwayat"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 2M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg><span>Riwayat</span></button>
-    <button class="nav" data-hal="laporan"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Laporan</span></button>
-    <button class="nav" data-hal="atur"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/></svg><span>Atur</span></button>
-    <div class="pengguna"><span class="avatar" id="avatarKasir" aria-hidden="true">A</span><span id="namaKasir">-</span><button id="btnKeluar" class="tautan" aria-label="Keluar"><svg viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></button></div>
+    <button class="nav aktif" data-hal="kasir"><svg data-icon-svg="nav-kasir" viewBox="0 0 24 24"><path d="M3 5h18v10H3zM7 19h10M12 15v4"/></svg><span>Kasir</span></button>
+    <button class="nav" data-hal="produk"><svg data-icon-svg="nav-produk" viewBox="0 0 24 24"><path d="M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10"/></svg><span>Produk</span></button>
+    <button class="nav" data-hal="riwayat"><svg data-icon-svg="nav-riwayat" viewBox="0 0 24 24"><path d="M12 7v5l3 2M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg><span>Riwayat</span></button>
+    <button class="nav" data-hal="laporan"><svg data-icon-svg="nav-laporan" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Laporan</span></button>
+    <button class="nav" data-hal="atur"><svg data-icon-svg="nav-atur" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/></svg><span>Atur</span></button>
+    <div class="pengguna"><span class="avatar" id="avatarKasir" aria-hidden="true">A</span><span id="namaKasir">-</span><button id="btnKeluar" class="tautan" aria-label="Keluar"><svg data-icon-svg="logout" viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></button></div>
   </nav>
 
   <main>
@@ -74,8 +74,8 @@
         <div class="pos-kiri">
           <header class="bar">
             <div class="bar-judul"><h2>Pilih menu</h2><span class="redup kecil" id="tglHariIni"></span></div>
-            <label class="cari"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="cariProduk" type="search" placeholder="Cari menu…" aria-label="Cari produk"></label>
-            <button id="btnScanKasir" class="pos-scan-btn" type="button" aria-label="Scan barcode untuk mencari barang" title="Scan barcode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M7 8v8M10 8v8M13 8v8M16 8v8"/></svg></button>
+            <label class="cari"><svg data-icon-svg="search" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="cariProduk" type="search" placeholder="Cari menu…" aria-label="Cari produk"></label>
+            <button id="btnScanKasir" class="pos-scan-btn" type="button" aria-label="Scan barcode untuk mencari barang" title="Scan barcode"><svg data-icon-svg="scan" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M7 8v8M10 8v8M13 8v8M16 8v8"/></svg></button>
             <select id="pilihCabangTransaksi" class="pos-pilih-cabang" aria-label="Pilih cabang transaksi" hidden><option value="">Semua cabang</option></select>
           </header>
           <div class="chip-baris" id="chipKategori"></div>
@@ -84,7 +84,7 @@
         <aside class="keranjang" id="panelKeranjang">
           <header class="ker-kepala">
             <div><h2>Pesanan <span id="kerNomor" class="nomor">#0001</span></h2><span class="redup kecil" id="kerJumlah">0 item</span></div>
-            <button class="tautan" id="btnKosongkan"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>Kosongkan</button>
+            <button class="tautan" id="btnKosongkan"><svg data-icon-svg="cart-clear" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>Kosongkan</button>
           </header>
           <ul class="ker-daftar" id="kerDaftar"></ul>
           <div class="ker-ringkas">
@@ -97,7 +97,7 @@
               </span>
             </div>
             <div class="baris total"><span>Total</span><b id="kTotal">Rp0</b></div>
-            <button class="tombol utama besar" id="btnBayar" disabled><span>Bayar</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+            <button class="tombol utama besar" id="btnBayar" disabled><span>Bayar</span><svg data-icon-svg="pay" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
           </div>
         </aside>
         <button class="fab-keranjang" id="fabKeranjang"><span class="fab-n"><span id="fabJumlah">0</span> item</span><b id="fabTotal">Rp0</b><span class="fab-lihat">Lihat pesanan</span></button>
