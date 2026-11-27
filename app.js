@@ -3,7 +3,7 @@
 
   // ---------- KONFIG gambar: ganti logo/foto cukup di sini (atau timpa berkas di img/) ----------
   var KONFIG = {
-    logo: 'img/logo.png',
+    logo: 'img/Logo.png',
     fotoContoh: 'img/produk-contoh.svg',
     fotoProduk: {},
     ikonSvg: {
