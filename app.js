@@ -371,6 +371,7 @@
     return { id: String(x.id_barang), nama: String(x.nama_barang || ''), kategori: String(x.kategori || 'Umum'),
       stok: Number(x.stok) || 0, foto: String(x.foto || ''), kode_barang: String(x.kode_barang || ''),
       barcode: String(x.barcode || ''), satuan: String(x.satuan || 'pcs'),
+      id_supplier: String(x.id_supplier || ''), nama_supplier: String(x.nama_supplier || ''),
       id_cabang: String(x.id_cabang || ''), nama_cabang: String(x.nama_cabang || x.id_cabang || ''), lokasi_rak: String(x.lokasi_rak || ''),
       harga_beli: Number(x.harga_beli) || 0,
       varian: [{ nama: 'Reguler', harga: Number(x.harga_jual) || 0 }] };
@@ -1400,41 +1401,131 @@
   }
   function formProduk(p) {
     var baru = !p;
-    p = p || { id: '', nama: '', kategori: D.kategori[0] || 'Umum', barcode: '', kode_barang: '', satuan: 'pcs', harga_beli: 0, varian: [{ nama: 'Reguler', harga: 0 }] };
+    p = p || { id: '', nama: '', kategori: D.kategori[0] || 'Umum', barcode: '', kode_barang: '', satuan: 'pcs', harga_beli: 0, id_supplier: '', nama_supplier: '', foto: '', varian: [{ nama: 'Reguler', harga: 0 }] };
     var harga = p.varian && p.varian[0] ? p.varian[0].harga : 0;
+    var suppliers = Array.isArray(D.supplier) ? D.supplier : [];
+    var optSupplier = '<option value="">-- Tanpa supplier / pilih supplier --</option>' +
+      suppliers.map(function (s) {
+        var idS = String(s.id_supplier || '');
+        var nmS = String(s.nama_supplier || idS);
+        var sel = (idS && idS === String(p.id_supplier || '')) ? ' selected' : '';
+        return '<option value="' + esc(idS) + '" data-nama="' + esc(nmS) + '"' + sel + '>' + esc(nmS) + (idS ? ' (' + esc(idS) + ')' : '') + '</option>';
+      }).join('');
+
     dialog('<h3>' + (baru ? 'Tambah' : 'Ubah') + ' master produk</h3><div class="form">' +
       '<label>Nama produk<input id="fNama" required value="' + esc(p.nama) + '"></label>' +
       '<label>Kategori<input id="fKat" required value="' + esc(p.kategori || 'Umum') + '"></label>' +
       '<label>Barcode<input id="fBarcode" value="' + esc(p.barcode || '') + '"></label>' +
       '<label>Kode barang<input id="fKode" value="' + esc(p.kode_barang || '') + '"></label>' +
       '<label>Satuan<input id="fSatuan" value="' + esc(p.satuan || 'pcs') + '"></label>' +
+      '<label>Supplier<select id="fSupplier">' + optSupplier + '</select></label>' +
       '<label>Harga beli<input id="fBeli" type="number" min="0" value="' + (p.harga_beli || 0) + '"></label>' +
-      '<label>Harga jual master<input id="fJual" type="number" min="0" value="' + harga + '"></label></div>' +
+      '<label>Harga jual master<input id="fJual" type="number" min="0" value="' + harga + '"></label>' +
+      '<label>Foto produk (URL atau unggah gambar)' +
+        '<input id="fFotoUrl" type="url" placeholder="https://... atau pilih file di bawah" value="' + esc(p.foto || '') + '">' +
+        '<input id="fFotoFile" type="file" accept="image/*" style="margin-top:6px">' +
+      '</label>' +
+      '<div id="fFotoPreview" style="margin-top:4px">' + (p.foto ? '<img src="' + esc(p.foto) + '" alt="Pratinjau" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--garis)">' : '<span class="redup kecil">Belum ada foto produk</span>') + '</div>' +
+      '</div>' +
       '<p class="redup kecil">Stok dan lokasi rak diatur terpisah untuk setiap cabang. Harga di sini adalah harga master.</p>' +
       '<div class="dlg-aksi">' + (baru ? '' : '<button type="button" class="tombol bahaya" id="fHapus" style="margin-right:auto">Hapus</button>') +
       '<button class="tombol" value="batal" formnovalidate>Batal</button><button class="tombol utama" type="button" id="fSimpan">Simpan</button></div>', function (f) {
+        var fotoDataBase64 = '';
+        var fotoMime = 'image/jpeg';
+        var fotoNamaFile = '';
+        var inFotoUrl = $('#fFotoUrl', f);
+        var inFotoFile = $('#fFotoFile', f);
+        var boxPreview = $('#fFotoPreview', f);
+
+        inFotoUrl.oninput = function () {
+          fotoDataBase64 = '';
+          var u = inFotoUrl.value.trim();
+          boxPreview.innerHTML = u
+            ? '<img src="' + esc(u) + '" alt="Pratinjau" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--garis)" onerror="this.style.display=\'none\'">'
+            : '<span class="redup kecil">Belum ada foto produk</span>';
+        };
+
+        inFotoFile.onchange = function () {
+          var file = inFotoFile.files && inFotoFile.files[0];
+          if (!file) return;
+          fotoNamaFile = file.name || 'produk.jpg';
+          var r = new FileReader();
+          r.onload = function () {
+            var im = new Image();
+            im.onload = function () {
+              var k = Math.min(1, 320 / Math.max(im.width, im.height));
+              var c = document.createElement('canvas');
+              c.width = Math.round(im.width * k);
+              c.height = Math.round(im.height * k);
+              c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+              var dataUrl = c.toDataURL('image/jpeg', 0.72);
+              fotoDataBase64 = dataUrl.split(',')[1] || '';
+              fotoMime = 'image/jpeg';
+              boxPreview.innerHTML = '<img src="' + dataUrl + '" alt="Pratinjau" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--garis)"> <span class="redup kecil">Siap diunggah ke Drive</span>';
+            };
+            im.onerror = function () { toast('Berkas bukan gambar yang valid.'); };
+            im.src = r.result;
+          };
+          r.readAsDataURL(file);
+        };
+
         if (!baru) $('#fHapus', f).onclick = function () {
           if (!confirm('Tandai produk ' + p.nama + ' sebagai terhapus dari master?')) return;
-          KPGApi.call('saveBarang', { token: tokenAktif(), id_barang: p.id, nama_barang: p.nama, kategori: p.kategori, barcode: p.barcode || '', kode_barang: p.kode_barang || '', satuan: p.satuan || 'pcs', harga_beli: p.harga_beli || 0, harga_jual: harga, foto: p.foto || '', status: 'HAPUS' })
+          KPGApi.call('saveBarang', { token: tokenAktif(), id_barang: p.id, nama_barang: p.nama, kategori: p.kategori, barcode: p.barcode || '', kode_barang: p.kode_barang || '', satuan: p.satuan || 'pcs', harga_beli: p.harga_beli || 0, harga_jual: harga, id_supplier: p.id_supplier || '', nama_supplier: p.nama_supplier || '', foto: p.foto || '', status: 'HAPUS' })
             .then(function () { tutupDialog(); return muatKatalogServer(true); }).then(function () { if (pengguna && pengguna.peran === 'owner' && cabangTransaksiAktif) return muatBarangUntukCabang(cabangTransaksiAktif); }).then(function () { toast('Produk dihapus dari master server.'); })
             .catch(function (e) { toast('Gagal menghapus: ' + e.message); });
         };
+
         $('#fSimpan', f).onclick = function () {
           var nama = $('#fNama', f).value.trim();
           if (!nama) return toast('Nama produk wajib diisi.');
-          var payload = { token: tokenAktif(), id_barang: baru ? '' : p.id, nama_barang: nama,
-            kategori: $('#fKat', f).value.trim() || 'Umum', barcode: $('#fBarcode', f).value.trim(),
-            kode_barang: $('#fKode', f).value.trim(), satuan: $('#fSatuan', f).value.trim() || 'pcs',
-            harga_beli: Math.max(0, Number($('#fBeli', f).value) || 0),
-            harga_jual: Math.max(0, Number($('#fJual', f).value) || 0), foto: p.foto || '', status: 'AKTIF' };
-          $('#fSimpan', f).disabled = true;
-          KPGApi.call('saveBarang', payload).then(function () {
+          var selSup = $('#fSupplier', f);
+          var idSupplier = selSup ? selSup.value.trim() : '';
+          var namaSupplier = (selSup && selSup.selectedOptions && selSup.selectedOptions[0] && idSupplier)
+            ? (selSup.selectedOptions[0].dataset.nama || '') : '';
+          var btnSimpan = $('#fSimpan', f);
+          btnSimpan.disabled = true;
+          btnSimpan.textContent = 'Menyimpan...';
+
+          var uploadPromise = fotoDataBase64
+            ? KPGApi.call('uploadFotoBarang', {
+                token: tokenAktif(),
+                id_barang: baru ? '' : p.id,
+                nama_file: fotoNamaFile || (nama + '.jpg'),
+                mime_type: fotoMime,
+                base64: fotoDataBase64
+              }).then(function (up) { return up.url || up.foto || ''; })
+            : Promise.resolve(inFotoUrl.value.trim());
+
+          uploadPromise.then(function (fotoUrlFinal) {
+            var payload = {
+              token: tokenAktif(),
+              id_barang: baru ? '' : p.id,
+              nama_barang: nama,
+              kategori: $('#fKat', f).value.trim() || 'Umum',
+              barcode: $('#fBarcode', f).value.trim(),
+              kode_barang: $('#fKode', f).value.trim(),
+              satuan: $('#fSatuan', f).value.trim() || 'pcs',
+              id_supplier: idSupplier,
+              nama_supplier: namaSupplier,
+              harga_beli: Math.max(0, Number($('#fBeli', f).value) || 0),
+              harga_jual: Math.max(0, Number($('#fJual', f).value) || 0),
+              foto: fotoUrlFinal,
+              status: 'AKTIF'
+            };
+            return KPGApi.call('saveBarang', payload);
+          }).then(function () {
             tutupDialog();
             return muatKatalogServer(true).then(function () {
               if (pengguna && pengguna.peran === 'owner' && cabangTransaksiAktif) return muatBarangUntukCabang(cabangTransaksiAktif);
             });
-          }).then(function () { toast('Master produk tersimpan di server.'); })
-            .catch(function (e) { $('#fSimpan', f).disabled = false; toast('Gagal menyimpan: ' + e.message); });
+          }).then(function () {
+            toast('Master produk tersimpan di server.');
+          }).catch(function (e) {
+            btnSimpan.disabled = false;
+            btnSimpan.textContent = 'Simpan';
+            toast('Gagal menyimpan: ' + e.message);
+          });
         };
       });
   }
@@ -1623,6 +1714,13 @@
   }
 
   function ikatEvent() {
+    if (window.KPGApi && KPGApi.onSessionExpired) {
+      KPGApi.onSessionExpired(function (msg) {
+        try { localStorage.removeItem('kpg-token'); } catch (e) {}
+        toast(msg || 'Sesi online berakhir. Silakan login online kembali untuk melanjutkan sinkronisasi.');
+        tampilMasuk();
+      });
+    }
     var pad = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'hapus'];
     $('#padPin').innerHTML = pad.map(function (k) { return k ? '<button data-k="' + k + '" aria-label="' + (k === 'hapus' ? 'Hapus' : k) + '">' + (k === 'hapus' ? '<svg viewBox="0 0 24 24"><path d="M9 5h11v14H9l-6-7z"/><path d="M13 9l5 6M18 9l-5 6"/></svg>' : k) + '</button>' : '<span></span>'; }).join('');
     $('#padPin').onclick = function (e) { var b = e.target.closest('[data-k]'); if (b) ketikPin(b.dataset.k); };
