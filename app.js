@@ -1567,10 +1567,13 @@
   function renderRiwayat() {
     var list = trxFilter();
     $('#daftarTrx').innerHTML = list.length ? list.slice(0, 200).map(function (x) {
+      var batal = x.status === 'DIBATALKAN';
       var cabangLabel = String(x.nama_cabang || '').trim() || String(x.id_cabang || '').trim() || 'Cabang tidak tercatat';
-      return '<div class="trx"><div><b>' + x.id + '</b><div class="meta">' + fmtWaktu(x.waktu) + ' · ' + esc(x.kasir) + ' · ' + x.metode.toUpperCase() + ' · ' + x.items.reduce(function (s, i) { return s + i.qty; }, 0) + ' item</div><div class="meta">Cabang: ' + esc(cabangLabel) + '</div>' +
+      var statusBadge = batal ? ' · <span style="color:#c0392b;font-weight:700">DIBATALKAN</span>' : (x.sync_status === 'MENUNGGU' ? ' · <span style="color:#b5651d">Menunggu sync</span>' : '');
+      return '<div class="trx"' + (batal ? ' style="opacity:.68"' : '') + '><div><b>' + x.id + '</b>' + statusBadge +
+        '<div class="meta">' + fmtWaktu(x.waktu) + ' · ' + esc(x.kasir) + ' · ' + x.metode.toUpperCase() + ' · ' + x.items.reduce(function (s, i) { return s + i.qty; }, 0) + ' item</div><div class="meta">Cabang: ' + esc(cabangLabel) + '</div>' +
         '<div class="meta">' + x.items.map(function (i) { return esc(i.nama) + ' ×' + i.qty; }).join(', ') + '</div></div><div class="tot">' + rp(x.total) + '</div>' +
-        '<div class="aksi"><button class="tombol" data-cetak="' + x.id + '">Cetak</button>' + (isAdmin() ? '<button class="tombol bahaya" data-hapus="' + x.id + '">Batalkan</button>' : '') + '</div></div>';
+        '<div class="aksi"><button class="tombol" data-cetak="' + x.id + '">Cetak</button>' + (isAdmin() && !batal ? '<button class="tombol bahaya" data-hapus="' + x.id + '">Batalkan</button>' : '') + '</div></div>';
     }).join('') : '<p class="kosong">Belum ada transaksi.</p>';
   }
 
@@ -1594,7 +1597,7 @@
   function renderLaporan() {
     var inp = $('#tglLaporan'); if (!inp.value) inp.value = tglKey(new Date());
     var t = new Date(inp.value + 'T00:00:00');
-    var list = D.transaksi.filter(function (x) { var d = new Date(x.waktu); return modeLap === 'hari' ? tglKey(d) === inp.value : d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth(); });
+    var list = D.transaksi.filter(function (x) { if (x.status === 'DIBATALKAN') return false; var d = new Date(x.waktu); return modeLap === 'hari' ? tglKey(d) === inp.value : d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth(); });
     var r = ringkasan(list);
     $('#kartuAngka').innerHTML = '<div class="angka sorot"><small>Omzet</small><b>' + rp(r.omzet) + '</b></div><div class="angka"><small>Transaksi</small><b>' + r.trx + '</b></div><div class="angka"><small>Item terjual</small><b>' + r.item + '</b></div><div class="angka"><small>Rata-rata/struk</small><b>' + rp(r.rata) + '</b></div>';
     var batang = [];
@@ -1805,24 +1808,42 @@
       if (c) cetak(D.transaksi.find(function (x) { return x.id === c.dataset.cetak; }));
       if (h && confirm('Batalkan transaksi ini? Stok akan dikembalikan ke cabang terkait.')) {
         var x = D.transaksi.find(function (t) { return t.id === h.dataset.hapus; });
-        if (!x) return;
+        if (!x || x.status === 'DIBATALKAN') return;
         var alasan = prompt('Alasan pembatalan transaksi:', 'Batal oleh admin/owner');
         if (alasan === null) return;
+        if (!x.cancel_client_id) {
+          x.cancel_client_id = KPGApi.makeClientId('BTL');
+          simpan();
+        }
+        h.disabled = true;
         var batalServer = (x.sync_status === 'TERSINKRON' && tokenAktif())
-          ? KPGApi.call('batalkanTransaksi', { token: tokenAktif(), id_transaksi: x.id, alasan: alasan })
+          ? KPGApi.call('batalkanTransaksi', {
+              token: tokenAktif(),
+              client_id: x.cancel_client_id,
+              id_transaksi: x.id,
+              alasan: alasan
+            })
           : Promise.resolve();
         batalServer.then(function () {
           x.items.forEach(function (i) {
-            var p = D.produk.find(function (q) { return q.id === i.pid; });
-            if (p) p.stok += i.qty;
+            var p = D.produk.find(function (q) { return String(q.id) === String(i.pid); });
+            if (p) p.stok = (Number(p.stok) || 0) + (Number(i.qty) || 0);
+            if (x.id_cabang && D.stokPerCabang && D.stokPerCabang[x.id_cabang] && p) {
+              D.stokPerCabang[x.id_cabang][p.id] = p.stok;
+            }
           });
+          if (pengguna && pengguna.peran === 'owner') {
+            produkKasirCache = D.produk.map(function (p) { return Object.assign({}, p); });
+          }
           if (window.KPGStorage && x.client_id) KPGStorage.removeOutbox(x.client_id).catch(function () {});
-          D.transaksi = D.transaksi.filter(function (t) { return t !== x; });
+          x.status = 'DIBATALKAN';
+          x.alasan_batal = alasan;
           return simpan();
         }).then(function () {
           renderRiwayat();
           toast('Transaksi berhasil dibatalkan dan stok dikembalikan.');
         }).catch(function (err) {
+          h.disabled = false;
           toast('Gagal membatalkan di server: ' + err.message);
         });
       }
@@ -1926,22 +1947,63 @@
       reader.readAsArrayBuffer(file);
     }
 
-    // --- 1. Sinkronisasi Manual ---
+    // --- Backup Snapshot Server (Owner) ---
+    var btnBackupServer = $('#btnBackupServer');
+    if (btnBackupServer) btnBackupServer.onclick = function () {
+      var box = $('#hasilAuditOwner');
+      box.textContent = 'Membuat backup snapshot database di Google Drive server...';
+      btnBackupServer.disabled = true;
+      KPGApi.call('backupDataSnapshot', { token: tokenAktif(), catatan: 'Backup manual dari UI Owner' })
+        .then(function (res) {
+          box.innerHTML = '<b style="color:var(--utama)">✓ Backup Server Berhasil:</b> ' + esc(res.file_name || res.backup_id || 'Snapshot tersimpan di Google Drive.');
+          toast('Backup server berhasil dibuat');
+        })
+        .catch(function (e) {
+          box.textContent = 'Gagal membuat backup server: ' + e.message;
+        })
+        .finally(function () { btnBackupServer.disabled = false; });
+    };
+
+    // --- 1. Sinkronisasi Manual (Bug Crash Diperbaiki) ---
     var btnSyncManual = $('#btnSyncManual');
     if (btnSyncManual) btnSyncManual.onclick = function () {
+      var token = tokenAktif();
+      if (!token) return toast('Sesi online tidak ditemukan. Login online terlebih dahulu.');
       btnSyncManual.disabled = true;
       toast('Menjalankan sinkronisasi manual...');
-      Promise.resolve()
-        .then(function () { return typeof syncPush === 'function' ? syncPush() : null; })
-        .then(function () { return typeof syncPull === 'function' ? syncPull(true) : null; })
-        .then(function () {
-          if (typeof produkKasirCache !== 'undefined') produkKasirCache = { cabang: '', waktu: 0, list: [] };
-          renderSemua();
-          toast('Sinkronisasi manual selesai.');
+      syncPending();
+      var cabangPull = (pengguna && pengguna.peran === 'owner') ? '' : (pengguna && pengguna.id_cabang || D.id_cabang_aktif || '');
+      KPGApi.call('syncPull', { token: token, since: '', id_cabang: cabangPull })
+        .then(function (data) {
+          terapkanSyncPull(data, pengguna);
+          produkKasirCache = null;
+          katalogLastFetchAt = 0;
+          return simpan();
         })
+        .then(function () {
+          renderPOS();
+          if ($('#hal-produk').classList.contains('aktif')) return muatKatalogServer(true);
+        })
+        .then(function () { toast('Sinkronisasi manual selesai.'); })
         .catch(function (err) { toast('Gagal sinkronisasi: ' + err.message); })
         .finally(function () { btnSyncManual.disabled = false; });
     };
+
+    // --- Helper kirim batch Excel bertahap agar tidak melebihi batas panjang URL JSONP ---
+    function kirimBatchBertahap(action, rows, chunkSize, extraParams, onProgress) {
+      var chunks = [];
+      for (var i = 0; i < rows.length; i += chunkSize) {
+        chunks.push(rows.slice(i, i + chunkSize));
+      }
+      var hasilGabung = [];
+      return chunks.reduce(function (chain, chunk, idx) {
+        return chain.then(function () {
+          if (onProgress) onProgress(idx + 1, chunks.length);
+          var params = Object.assign({ token: tokenAktif(), items: chunk }, extraParams ? extraParams(idx) : {});
+          return KPGApi.call(action, params).then(function (res) { hasilGabung.push(res); });
+        });
+      }, Promise.resolve()).then(function () { return hasilGabung; });
+    }
 
     // --- 2. Update Data (Excel) ---
     var boxExcel = $('#statusUpdateExcel');
@@ -1972,9 +2034,13 @@
       bacaExcelRows(this, function (rows) {
         if (!rows.length) return toast('File Excel kosong.');
         if (!confirm('Import ' + rows.length + ' baris barang baru ke Google Sheets?')) return;
-        if (boxExcel) boxExcel.textContent = 'Mengunggah ' + rows.length + ' barang baru...';
-        KPGApi.call('importBarangBaru', { token: tokenAktif(), items: rows }).then(function (res) {
-          if (boxExcel) boxExcel.innerHTML = '<b style="color:var(--utama)">✓ Import Barang Selesai:</b> ' + res.inserted + ' barang ditambahkan, ' + res.skipped + ' dilewati (ID sudah ada/kosong).';
+        kirimBatchBertahap('importBarangBaru', rows, 12, null, function (part, total) {
+          if (boxExcel) boxExcel.textContent = 'Mengunggah barang baru (paket ' + part + ' dari ' + total + ')...';
+        }).then(function (listRes) {
+          var ins = listRes.reduce(function (s, r) { return s + (Number(r.inserted) || 0); }, 0);
+          var skip = listRes.reduce(function (s, r) { return s + (Number(r.skipped) || 0); }, 0);
+          katalogLastFetchAt = 0;
+          if (boxExcel) boxExcel.innerHTML = '<b style="color:var(--utama)">✓ Import Barang Selesai:</b> ' + ins + ' barang ditambahkan, ' + skip + ' dilewati (ID sudah ada/kosong).';
         }).catch(function (err) {
           if (boxExcel) boxExcel.innerHTML = '<b style="color:#c0392b">Gagal import barang:</b> ' + esc(err.message);
         });
@@ -1985,12 +2051,16 @@
     if (fileImportUbah) fileImportUbah.onchange = function () {
       bacaExcelRows(this, function (rows) {
         if (!rows.length) return toast('File Excel kosong.');
-        if (!rows[0].hasOwnProperty('id_barang')) return toast('Header wajib memiliki kolom id_barang.');
+        if (!Object.prototype.hasOwnProperty.call(rows[0], 'id_barang')) return toast('Header wajib memiliki kolom id_barang.');
         if (!confirm('Terapkan perubahan data pada ' + rows.length + ' baris barang?')) return;
-        if (boxExcel) boxExcel.textContent = 'Memperbarui data barang di server...';
-        KPGApi.call('importPerubahanBarang', { token: tokenAktif(), items: rows }).then(function (res) {
-          var infoNotFound = (res.notFound && res.notFound.length) ? ' (ID tidak ditemukan: ' + res.notFound.slice(0, 5).join(', ') + ')' : '';
-          if (boxExcel) boxExcel.innerHTML = '<b style="color:var(--utama)">✓ Update Barang Selesai:</b> ' + res.updated + ' barang diperbarui' + esc(infoNotFound) + '.';
+        kirimBatchBertahap('importPerubahanBarang', rows, 15, null, function (part, total) {
+          if (boxExcel) boxExcel.textContent = 'Memperbarui data barang (paket ' + part + ' dari ' + total + ')...';
+        }).then(function (listRes) {
+          var upd = listRes.reduce(function (s, r) { return s + (Number(r.updated) || 0); }, 0);
+          var nf = listRes.reduce(function (a, r) { return a.concat(r.notFound || []); }, []);
+          var infoNotFound = nf.length ? ' (ID tidak ditemukan: ' + nf.slice(0, 5).join(', ') + ')' : '';
+          katalogLastFetchAt = 0;
+          if (boxExcel) boxExcel.innerHTML = '<b style="color:var(--utama)">✓ Update Barang Selesai:</b> ' + upd + ' barang diperbarui' + esc(infoNotFound) + '.';
         }).catch(function (err) {
           if (boxExcel) boxExcel.innerHTML = '<b style="color:#c0392b">Gagal update barang:</b> ' + esc(err.message);
         });
@@ -2001,18 +2071,21 @@
     if (fileImportStok) fileImportStok.onchange = function () {
       bacaExcelRows(this, function (rows) {
         if (!rows.length) return toast('File Excel kosong.');
-        if (!rows[0].hasOwnProperty('id_cabang') || !rows[0].hasOwnProperty('id_barang')) {
-          return toast('Header Excel wajib memiliki kolom id_cabang, id_barang, dan perubahan_stock.');
+        if (!Object.prototype.hasOwnProperty.call(rows[0], 'id_cabang') || !Object.prototype.hasOwnProperty.call(rows[0], 'id_barang') || !Object.prototype.hasOwnProperty.call(rows[0], 'stok')) {
+          return toast('Header Excel wajib memiliki kolom id_cabang, id_barang, dan stok (stok akhir absolut).');
         }
-        if (!confirm('Proses ' + rows.length + ' mutasi stok cabang (+ tambah / - kurang)?')) return;
-        if (boxExcel) boxExcel.textContent = 'Memproses perubahan stok cabang di server...';
-        KPGApi.call('importStokCabang', {
-          token: tokenAktif(),
-          batch_id: 'IMP-' + Date.now(),
-          items: rows
-        }).then(function (res) {
-          if (typeof produkKasirCache !== 'undefined') produkKasirCache = { cabang: '', waktu: 0, list: [] };
-          if (boxExcel) boxExcel.innerHTML = '<b style="color:var(--utama)">✓ Update Stock Cabang Selesai:</b> ' + res.processed + ' mutasi stok diproses & dicatat di jurnal.';
+        if (!confirm('Terapkan stok akhir absolut pada ' + rows.length + ' baris stok cabang?')) return;
+        var batchPrefix = 'IMP-' + Date.now();
+        kirimBatchBertahap('importStokCabang', rows, 20, function (idx) {
+          var cid = batchPrefix + '-P' + (idx + 1);
+          return { batch_id: cid, client_id: cid };
+        }, function (part, total) {
+          if (boxExcel) boxExcel.textContent = 'Memproses stok cabang (paket ' + part + ' dari ' + total + ')...';
+        }).then(function (listRes) {
+          var proc = listRes.reduce(function (s, r) { return s + (Number(r.processed || r.updated) || 0); }, 0);
+          produkKasirCache = null;
+          katalogLastFetchAt = 0;
+          if (boxExcel) boxExcel.innerHTML = '<b style="color:var(--utama)">✓ Update Stock Cabang Selesai:</b> ' + proc + ' baris stok cabang diproses & dicatat di jurnal.';
         }).catch(function (err) {
           if (boxExcel) boxExcel.innerHTML = '<b style="color:#c0392b">Gagal update stok cabang:</b> ' + esc(err.message);
         });
