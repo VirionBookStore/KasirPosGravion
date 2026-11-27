@@ -1015,7 +1015,7 @@
     dialog('<div class="bayar"><div class="bayar-kiri"><div class="bayar-kepala"><h3>Pembayaran</h3><span class="redup kecil">' + keranjang.reduce(function (s, i) { return s + i.qty; }, 0) + ' item' + (h.diskon ? ' · diskon ' + rp(h.diskon) : '') + '</span></div>' +
       '<div class="total-besar"><small>Total tagihan</small>' + rp(h.total) + '</div>' +
       '<div class="metode" role="radiogroup" aria-label="Metode bayar">' + ['tunai', 'qris', 'transfer'].map(function (m, i) { return '<label><input type="radio" name="metode" value="' + m + '"' + (i ? '' : ' checked') + '>' + IK[m] + '<span>' + { tunai: 'Tunai', qris: 'QRIS', transfer: 'Transfer' }[m] + '</span></label>'; }).join('') + '</div>' +
-      '<div id="areaQris" class="qris" hidden><img src="qris.svg" alt="QRIS toko"><p class="redup kecil">Minta pelanggan memindai, cek notifikasi masuk, lalu selesaikan.</p></div>' +
+      '<div id="areaQris" class="qris" hidden><img src="qris.png" alt="QRIS toko"><p class="redup kecil">Minta pelanggan memindai, cek notifikasi masuk, lalu selesaikan.</p></div>' +
       '<div id="areaTransfer" hidden class="rek"><small class="redup">Rekening tujuan</small><b>' + esc(D.toko.rekening || 'Atur nomor rekening di Pengaturan') + '</b><p class="redup kecil">Cek mutasi sebelum menyelesaikan.</p></div>' +
       '<div class="kembali" id="kembali"><span>Kembalian</span><span>Rp0</span></div></div>' +
       '<div class="bayar-kanan" id="areaTunai"><label class="layar-uang"><small>Uang diterima</small><span class="rp">Rp</span><input id="inBayar" type="number" inputmode="numeric" min="0" value="' + h.total + '"></label>' +
